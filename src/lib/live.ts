@@ -37,6 +37,12 @@ export function useLiveUpdates(user: User) {
     const channel = echo.private(`user.${user.id}`)
     for (const [event, handler] of Object.entries(handlers)) channel.listen(event, handler)
 
+    // Lists fetched before the subscription went through could have missed an event.
+    channel.subscribed(() => {
+      queryClient.invalidateQueries({ queryKey: FRIENDS })
+      conversations()
+    })
+
     return () => {
       for (const [event, handler] of Object.entries(handlers)) channel.stopListening(event, handler)
     }
