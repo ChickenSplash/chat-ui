@@ -47,15 +47,15 @@ export function Terms() {
         </Section>
 
         <Section title="Who can use it">
-          <List>
-            <li>
-              You must be <strong>18 or over</strong>.
-            </li>
-            <li>One person per account. Don't share your account or pretend to be someone else.</li>
-          </List>
+          <p>
+            You must be <strong>18 or over</strong>.
+          </p>
         </Section>
 
         <Section title="What's not allowed">
+          <p>
+            <strong>No sexual or pornographic content of any kind</strong>, including links to it.
+          </p>
           <p>Don't post, send or link to anything illegal in the UK, including:</p>
           <List>
             <li>sexual content involving children, or anything that grooms or exploits a child</li>
@@ -63,7 +63,7 @@ export function Terms() {
             <li>hatred against people for their race, religion, sexuality, disability or gender identity</li>
             <li>terrorist content, or encouraging violence</li>
             <li>encouraging or assisting self-harm or suicide</li>
-            <li>intimate images shared without consent, or extreme pornography</li>
+            <li>sharing or threatening to share intimate images of someone without their consent</li>
             <li>fraud, scams, or selling drugs, weapons or other illegal items</li>
           </List>
           <p>Spam and flooding aren't allowed either.</p>
