@@ -11,6 +11,21 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'register', label: 'Register' },
 ]
 
+/** Required to join or register. Opens in a new tab so the form keeps what's typed. */
+function AgreeToTerms() {
+  return (
+    <label className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <input type="checkbox" required className="mt-0.5" />
+      <span>
+        I'm 18 or over and agree to the{' '}
+        <a href="/terms" target="_blank" rel="noopener" className="text-indigo-600 hover:underline dark:text-indigo-400">
+          terms and privacy policy
+        </a>
+      </span>
+    </label>
+  )
+}
+
 /** A validation error goes under its field; anything else (rate limits, outages) goes on top. */
 function problem(error: unknown) {
   if (!error) return { field: () => undefined, general: undefined }
@@ -83,6 +98,7 @@ function GuestForm() {
       <p className="text-sm text-zinc-500">
         No account needed. Your guest account is deleted when you log out.
       </p>
+      <AgreeToTerms />
       <Button type="submit" className="w-full" disabled={join.isPending}>
         {join.isPending ? 'Joining…' : 'Join'}
       </Button>
@@ -187,6 +203,7 @@ function RegisterForm() {
         onChange={set('password_confirmation')}
         required
       />
+      <AgreeToTerms />
       <Button type="submit" className="w-full" disabled={register.isPending}>
         {register.isPending ? 'Creating account…' : 'Create account'}
       </Button>

@@ -6,6 +6,7 @@ test.beforeEach(({ context }) => ownIp(context))
 test('a guest joins, pings over the WebSocket, renames and leaves', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Display name').fill('Smoke Guest')
+  await page.getByRole('checkbox', { name: /agree to the terms/ }).check()
   await page.getByRole('button', { name: 'Join' }).click()
 
   await expect(page.getByTestId('me')).toContainText('Smoke Guest')
@@ -40,6 +41,7 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password', { exact: true }).fill('a-long-password')
   await page.getByLabel('Confirm password').fill('a-long-password')
+  await page.getByRole('checkbox', { name: /agree to the terms/ }).check()
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page.getByTestId('me')).toHaveText('E2E User')
 
@@ -76,6 +78,23 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
 test('a blank-looking name is refused under the field', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Display name').fill('   ')
+  await page.getByRole('checkbox', { name: /agree to the terms/ }).check()
   await page.getByRole('button', { name: 'Join' }).click()
   await expect(page.getByText(/display name field/i)).toBeVisible()
+})
+
+test('joining needs the terms agreed, and the terms open without signing in', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Display name').fill('Hasty Guest')
+  await page.getByRole('button', { name: 'Join' }).click()
+  await expect(page.getByRole('tab', { name: 'Join as guest' })).toBeVisible()
+  await expect(page.getByTestId('me')).toHaveCount(0)
+
+  const [terms] = await Promise.all([
+    page.waitForEvent('popup'),
+    page.getByRole('link', { name: 'terms and privacy policy' }).click(),
+  ])
+  await expect(terms.getByRole('heading', { name: 'Terms and privacy' })).toBeVisible()
+  await expect(terms.getByRole('link', { name: 'guardeded@gmail.com' }).first()).toBeVisible()
+  await expect(page.getByLabel('Display name')).toHaveValue('Hasty Guest')
 })

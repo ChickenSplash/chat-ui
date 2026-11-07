@@ -11,9 +11,19 @@ import { GroupSettings } from './pages/GroupSettings'
 import { Invite } from './pages/Invite'
 import { NewGroup } from './pages/NewGroup'
 import { Settings } from './pages/Settings'
+import { Terms } from './pages/Terms'
 import { Welcome } from './pages/Welcome'
 
 export default function App() {
+  return (
+    <Routes>
+      <Route path="terms" element={<Terms />} />
+      <Route path="*" element={<Main />} />
+    </Routes>
+  )
+}
+
+function Main() {
   const me = useMe()
 
   if (me.isPending) return null

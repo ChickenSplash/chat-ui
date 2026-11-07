@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import { Button, Card, ErrorNote, Field, GuestBadge } from '../components/ui'
 import { api, ApiError } from '../lib/api'
 import { useChangePassword, useUpdateProfile, type User } from '../lib/auth'
@@ -17,6 +18,9 @@ export function Settings({ user }: { user: User }) {
           <DisplayNameForm user={user} />
           {!user.is_guest && <PasswordForm />}
           <Connection user={user} />
+          <Link to="/terms" className="block text-sm text-zinc-500 hover:underline">
+            Terms and privacy
+          </Link>
         </div>
       </div>
     </>

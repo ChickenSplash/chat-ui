@@ -15,6 +15,7 @@ export const unique = () => Math.random().toString(36).slice(2, 10)
 export async function joinAsGuest(page: Page, name: string): Promise<string> {
   await page.goto('/')
   await page.getByLabel('Display name').fill(name)
+  await page.getByRole('checkbox', { name: /agree to the terms/ }).check()
   await page.getByRole('button', { name: 'Join' }).click()
   await expect(page.getByTestId('me')).toContainText(name)
 
