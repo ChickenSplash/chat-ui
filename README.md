@@ -23,6 +23,9 @@ Everything is same-origin: nginx (or the Vite dev server) forwards
 - **Welcome:** join as a guest, log in or register
 - **Friends** (`/`): All, Pending, Blocked, Add Friend by ID
 - **DM** (`/dm/:id`): messages show grey until HMS saves them, red with Retry / Discard on failure
+- **Group** (`/groups/:id`): chat plus a member list; click a member for role, kick and ban options
+- **Group settings** (`/groups/:id/settings`): details, invite link, bans, leave, delete
+- **Create or join** (`/groups/new`), **Explore** (`/groups/explore`), **Invite** (`/invite/:code`)
 - **Settings** (`/settings`): display name, password, live connection ping
 
 The layout copies Discord's three columns; the visual design gets an overhaul later.

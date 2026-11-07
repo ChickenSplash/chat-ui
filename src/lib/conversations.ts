@@ -3,26 +3,54 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { api, ApiError } from './api'
 import type { PublicUser } from './friends'
 
+export type SystemEvent = {
+  event: 'joined' | 'left' | 'kicked' | 'banned' | 'role' | 'owner'
+  user: PublicUser
+  by?: PublicUser
+  role?: string
+}
+
 export type Message = {
   id: number
   conversation_id: number
+  /** System messages ("Bob joined") have no author or body; meta says what happened. */
+  type: 'text' | 'system'
   author: PublicUser | null
   body: string
+  meta: SystemEvent | null
   nonce: string | null
   created_at: string
   edited_at: string | null
 }
 
-export type Conversation = {
+export type Role = 'owner' | 'admin' | 'mod' | 'member'
+
+type Common = {
   id: number
-  type: 'dm' | 'group'
-  /** The other person in a DM; null once they have been deleted. */
-  user: PublicUser | null
-  blocked: boolean
   last_message: Message | null
   last_read_message_id: number | null
   unread_count: number
 }
+
+export type Dm = Common & {
+  type: 'dm'
+  /** The other person; null once they have been deleted. */
+  user: PublicUser | null
+  blocked: boolean
+}
+
+export type Group = Common & {
+  type: 'group'
+  name: string
+  description: string | null
+  visibility: 'public' | 'private'
+  invite_code: string
+  role: Role
+  member_count: number
+  joined_at: string
+}
+
+export type Conversation = Dm | Group
 
 type Page = { data: Message[]; has_more: boolean }
 

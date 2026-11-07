@@ -1,13 +1,13 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router'
 import { ApiError } from '../lib/api'
 import type { User } from '../lib/auth'
 import { useLogout } from '../lib/auth'
-import { useConversations, useOpenDm } from '../lib/conversations'
+import { useConversations, useOpenDm, type Dm, type Group } from '../lib/conversations'
 import { nameOf, useFriends } from '../lib/friends'
 import { useLiveUpdates } from '../lib/live'
 import { useRealtime, type ConnectionState } from '../lib/realtime-context'
-import { Avatar } from './Avatar'
+import { Avatar, GroupIcon } from './Avatar'
 import { Icon } from './icons'
 import { GuestBadge } from './ui'
 
@@ -23,9 +23,16 @@ export function Layout({ user }: { user: User }) {
   useLiveUpdates(user)
   const conversations = useConversations()
   const friends = useFriends()
+  const groupMatch = useMatch('/groups/:id/*')
+
+  const all = conversations.data ?? []
+  const dms = all.filter((c): c is Dm => c.type === 'dm')
+  const groups = all.filter((c): c is Group => c.type === 'group').sort((a, b) => a.joined_at.localeCompare(b.joined_at))
+  const currentGroup = groups.find((g) => String(g.id) === groupMatch?.params.id)
 
   const incoming = friends.data?.filter((f) => f.status === 'incoming').length ?? 0
-  const unread = conversations.data?.reduce((sum, c) => sum + c.unread_count, 0) ?? 0
+  const dmUnread = dms.reduce((sum, c) => sum + c.unread_count, 0)
+  const unread = all.reduce((sum, c) => sum + c.unread_count, 0)
 
   useEffect(() => {
     document.title = unread + incoming > 0 ? `(${unread + incoming}) Chat` : 'Chat'
@@ -33,47 +40,66 @@ export function Layout({ user }: { user: User }) {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-main text-zinc-100">
-      <nav aria-label="Servers" className="flex w-[72px] shrink-0 flex-col items-center gap-2 bg-rail py-3">
-        <Link
-          to="/"
-          title="Direct messages"
-          className="relative flex size-12 items-center justify-center rounded-2xl bg-indigo-500 text-white transition hover:rounded-xl"
-        >
-          <Icon name="chat" className="size-7" />
-          {unread > 0 && <Badge className="absolute -right-1 -bottom-1 ring-4 ring-rail">{unread}</Badge>}
-        </Link>
-        <div className="h-0.5 w-8 rounded bg-side" />
-        <span title="Groups arrive in a later phase" className="flex size-12 items-center justify-center rounded-full bg-side text-zinc-500">
-          <Icon name="plus" />
-        </span>
+      <nav aria-label="Servers" className="flex w-[72px] shrink-0 flex-col items-center gap-2 overflow-y-auto bg-rail py-3">
+        <RailItem to="/" label="Direct messages" active={!groupMatch} badge={dmUnread}>
+          <span className="flex size-12 items-center justify-center bg-indigo-500 text-white">
+            <Icon name="chat" className="size-7" />
+          </span>
+        </RailItem>
+        <div className="h-0.5 w-8 shrink-0 rounded bg-side" />
+        <ul aria-label="Groups" className="flex flex-col items-center gap-2">
+          {groups.map((group) => (
+            <li key={group.id}>
+              <RailItem to={`/groups/${group.id}`} label={group.name} active={currentGroup?.id === group.id} badge={group.unread_count}>
+                <GroupIcon group={group} />
+              </RailItem>
+            </li>
+          ))}
+        </ul>
+        <RailItem to="/groups/new" label="Create or join a group" active={groupMatch?.params.id === 'new'}>
+          <span className="flex size-12 items-center justify-center bg-side text-emerald-500 transition group-hover:bg-emerald-600 group-hover:text-white">
+            <Icon name="plus" />
+          </span>
+        </RailItem>
+        <RailItem to="/groups/explore" label="Explore public groups" active={groupMatch?.params.id === 'explore'}>
+          <span className="flex size-12 items-center justify-center bg-side text-emerald-500 transition group-hover:bg-emerald-600 group-hover:text-white">
+            <Icon name="compass" />
+          </span>
+        </RailItem>
       </nav>
 
       <aside className="flex w-60 shrink-0 flex-col bg-side">
-        <div className="flex h-12 items-center border-b border-black/20 px-2.5 shadow-sm">
-          <StartDm />
-        </div>
+        {currentGroup ? (
+          <GroupSidebar group={currentGroup} />
+        ) : (
+          <>
+            <div className="flex h-12 items-center border-b border-black/20 px-2.5 shadow-sm">
+              <StartDm />
+            </div>
 
-        <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
-          <SideLink to="/" end icon={<Icon name="users" className="size-6" />}>
-            <span className="flex-1">Friends</span>
-            {incoming > 0 && <Badge>{incoming}</Badge>}
-          </SideLink>
+            <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
+              <SideLink to="/" end icon={<Icon name="users" className="size-6" />}>
+                <span className="flex-1">Friends</span>
+                {incoming > 0 && <Badge>{incoming}</Badge>}
+              </SideLink>
 
-          <h2 className="px-2 pt-4 pb-1 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Direct messages</h2>
-          <ul aria-label="Direct messages" className="space-y-0.5">
-            {conversations.data?.map((c) => (
-              <li key={c.id}>
-                <SideLink to={`/dm/${c.id}`} icon={<Avatar user={c.user} size="sm" />} bold={c.unread_count > 0}>
-                  <span className="flex-1 truncate">{nameOf(c.user)}</span>
-                  {c.unread_count > 0 && <Badge>{c.unread_count}</Badge>}
-                </SideLink>
-              </li>
-            ))}
-          </ul>
-          {conversations.data?.length === 0 && (
-            <p className="px-2 py-1 text-sm text-zinc-500">No conversations yet. Message a friend to start one.</p>
-          )}
-        </div>
+              <h2 className="px-2 pt-4 pb-1 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Direct messages</h2>
+              <ul aria-label="Direct messages" className="space-y-0.5">
+                {dms.map((c) => (
+                  <li key={c.id}>
+                    <SideLink to={`/dm/${c.id}`} icon={<Avatar user={c.user} size="sm" />} bold={c.unread_count > 0}>
+                      <span className="flex-1 truncate">{nameOf(c.user)}</span>
+                      {c.unread_count > 0 && <Badge>{c.unread_count}</Badge>}
+                    </SideLink>
+                  </li>
+                ))}
+              </ul>
+              {conversations.isSuccess && dms.length === 0 && (
+                <p className="px-2 py-1 text-sm text-zinc-500">No conversations yet. Message a friend to start one.</p>
+              )}
+            </div>
+          </>
+        )}
 
         <UserPanel user={user} />
       </aside>
@@ -82,6 +108,60 @@ export function Layout({ user }: { user: User }) {
         <Outlet />
       </main>
     </div>
+  )
+}
+
+/** A rail icon: round until hovered or active, with Discord's white pill on the left. */
+function RailItem({
+  to,
+  label,
+  active,
+  badge = 0,
+  children,
+}: {
+  to: string
+  label: string
+  active: boolean
+  badge?: number
+  children: ReactNode
+}) {
+  return (
+    <Link to={to} aria-label={label} title={label} aria-current={active ? 'page' : undefined} className="group relative flex px-3">
+      <span
+        className={`absolute top-1/2 left-0 w-1 -translate-y-1/2 rounded-r bg-white transition-all ${
+          active ? 'h-10' : badge > 0 ? 'h-2' : 'h-0 group-hover:h-5'
+        }`}
+      />
+      <span className={`overflow-hidden transition-all ${active ? 'rounded-xl' : 'rounded-3xl group-hover:rounded-xl'}`}>{children}</span>
+      {badge > 0 && <Badge className="absolute right-2 -bottom-1 ring-4 ring-rail">{badge}</Badge>}
+    </Link>
+  )
+}
+
+function GroupSidebar({ group }: { group: Group }) {
+  return (
+    <>
+      <Link
+        to={`/groups/${group.id}/settings`}
+        className="flex h-12 items-center gap-2 border-b border-black/20 px-4 font-semibold shadow-sm hover:bg-hover/40"
+      >
+        <span className="flex-1 truncate">{group.name}</span>
+        <Icon name="chevronDown" className="size-4 text-zinc-400" />
+      </Link>
+      <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
+        <SideLink to={`/groups/${group.id}`} end icon={<Icon name="hashtag" className="size-5" />} bold={group.unread_count > 0}>
+          <span className="flex-1">chat</span>
+          {group.unread_count > 0 && <Badge>{group.unread_count}</Badge>}
+        </SideLink>
+        <SideLink to={`/groups/${group.id}/settings`} icon={<Icon name="cog" className="size-5" />}>
+          <span className="flex-1">Settings</span>
+        </SideLink>
+        <p className="px-2 pt-4 text-xs text-zinc-500">
+          {group.visibility === 'public' ? 'Public' : 'Private'} group · {group.member_count}{' '}
+          {group.member_count === 1 ? 'member' : 'members'}
+        </p>
+      </div>
+    </>
   )
 }
 

@@ -33,3 +33,32 @@ export function Avatar({ user, size = 'md' }: { user: PublicUser | null; size?: 
     </span>
   )
 }
+
+const GROUP_SIZES = { sm: 'size-8 text-xs', md: 'size-12 text-base', lg: 'size-16 text-xl' }
+
+/** Up to two initials from the group's name, on a colour that survives renames. */
+export function GroupIcon({
+  group,
+  size = 'md',
+  className = '',
+}: {
+  group: { id: number; name: string }
+  size?: keyof typeof GROUP_SIZES
+  className?: string
+}) {
+  const initials = group.name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => [...word][0]?.toUpperCase())
+    .join('')
+
+  return (
+    <span
+      aria-hidden
+      className={`flex shrink-0 select-none items-center justify-center font-semibold text-white ${GROUP_SIZES[size]} ${colourFor(`group-${group.id}`)} ${className}`}
+    >
+      {initials}
+    </span>
+  )
+}

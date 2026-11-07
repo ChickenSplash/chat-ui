@@ -4,7 +4,12 @@ import { ErrorNote } from './components/ui'
 import { useMe } from './lib/auth'
 import { RealtimeProvider } from './lib/realtime'
 import { DirectMessage } from './pages/DirectMessage'
+import { Explore } from './pages/Explore'
 import { Friends } from './pages/Friends'
+import { Group } from './pages/Group'
+import { GroupSettings } from './pages/GroupSettings'
+import { Invite } from './pages/Invite'
+import { NewGroup } from './pages/NewGroup'
 import { Settings } from './pages/Settings'
 import { Welcome } from './pages/Welcome'
 
@@ -31,6 +36,11 @@ export default function App() {
         <Route element={<Layout user={user} />}>
           <Route index element={<Friends />} />
           <Route path="dm/:id" element={<DirectMessage user={user} />} />
+          <Route path="groups/new" element={<NewGroup />} />
+          <Route path="groups/explore" element={<Explore />} />
+          <Route path="groups/:id" element={<Group user={user} />} />
+          <Route path="groups/:id/settings" element={<GroupSettings />} />
+          <Route path="invite/:code" element={<Invite />} />
           <Route path="settings" element={<Settings user={user} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

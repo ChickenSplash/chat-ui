@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import type { User } from './auth'
 import { addMessage, CONVERSATIONS, removeMessage, type Message } from './conversations'
 import { BLOCKS, FRIENDS } from './friends'
+import { GROUPS, membersKey } from './groups'
 import { useRealtime } from './realtime-context'
 
 /** Applies everything HMS pushes on your own channel to the query cache. Mounted once, in the layout. */
@@ -24,13 +25,18 @@ export function useLiveUpdates(user: User) {
       '.message.sent': (message: Message) => {
         addMessage(queryClient, message)
         conversations()
+        // Joins, kicks and role changes arrive as system messages.
+        if (message.type === 'system') queryClient.invalidateQueries({ queryKey: membersKey(message.conversation_id) })
       },
       '.message.deleted': ({ conversation_id, id }: { conversation_id: number; id: number }) => {
         removeMessage(queryClient, conversation_id, id)
         conversations()
       },
       '.conversation.read': conversations,
-      '.conversations.changed': conversations,
+      '.conversations.changed': () => {
+        conversations()
+        queryClient.invalidateQueries({ queryKey: GROUPS })
+      },
     }
 
     // Not echo.leave(): other screens (the ping in settings) listen on the same channel.
