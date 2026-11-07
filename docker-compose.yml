@@ -1,0 +1,14 @@
+services:
+  chat-ui:
+    build: .
+    container_name: chat-ui
+    hostname: chat-ui
+    networks: [edge]
+    restart: unless-stopped
+
+networks:
+  # Created by the cloudflared stack. Point the tunnel's public hostname at
+  # http://chat-ui:80; this nginx forwards the API and WebSockets to HMS.
+  edge:
+    name: edge
+    external: true
