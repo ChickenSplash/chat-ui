@@ -2,6 +2,7 @@ import { useDeferredValue, useState } from 'react'
 import { GroupPreview } from '../components/GroupPreview'
 import { Icon } from '../components/icons'
 import { useBrowseGroups, useJoinGroup } from '../lib/groups'
+import { NavButton } from '../components/NavButton'
 
 /** Public groups, biggest first. */
 export function Explore() {
@@ -12,6 +13,7 @@ export function Explore() {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
+        <NavButton />
         <Icon name="compass" className="size-6 text-zinc-400" />
         <h1 className="font-semibold">Explore public groups</h1>
       </header>

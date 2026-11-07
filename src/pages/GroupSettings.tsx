@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { Avatar } from '../components/Avatar'
+import { NavButton } from '../components/NavButton'
 import { Icon } from '../components/icons'
 import { Button, ErrorNote, Field } from '../components/ui'
 import { ApiError } from '../lib/api'
@@ -29,6 +30,7 @@ export function GroupSettings() {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
+        <NavButton />
         <Link to={`/groups/${group.id}`} aria-label="Back to the chat" className="rounded p-1 text-zinc-400 hover:text-zinc-200">
           <Icon name="arrowRight" className="size-5 rotate-180" />
         </Link>

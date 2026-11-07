@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { Avatar } from '../components/Avatar'
+import { NavButton } from '../components/NavButton'
 import { Icon, type IconName } from '../components/icons'
 import { Badge } from '../components/Layout'
 import { GuestBadge } from '../components/ui'
@@ -16,6 +17,7 @@ import {
   useUnblock,
   type PublicUser,
 } from '../lib/friends'
+import { STATUS_LABEL, useStatusOf } from '../lib/presence'
 
 type Tab = 'all' | 'pending' | 'blocked' | 'add'
 
@@ -41,6 +43,7 @@ export function Friends() {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-4 border-b border-black/20 px-4 shadow-sm">
+        <NavButton />
         <h1 className="flex items-center gap-2 font-semibold">
           <Icon name="users" className="size-6 text-zinc-400" /> Friends
         </h1>
@@ -86,7 +89,7 @@ function FriendList() {
   return (
     <Section title={`All friends · ${list.length}`} empty={friends.isSuccess && list.length === 0 && 'No friends yet. Add someone by their ID.'}>
       {list.map(({ user }) => (
-        <Row key={user.id} user={user}>
+        <Row key={user.id} user={user} presence>
           <Action icon="chat" label={`Message ${user.display_name}`} onClick={() => message(user)} />
           <Action
             icon="userMinus"
@@ -209,17 +212,21 @@ function Section({ title, empty, children }: { title: string; empty: string | fa
   )
 }
 
-function Row({ user, note, children }: { user: PublicUser; note?: string; children: ReactNode }) {
+/** A person in one of the lists. Friends (`presence`) show their status as the note. */
+function Row({ user, note, presence, children }: { user: PublicUser; note?: string; presence?: boolean; children: ReactNode }) {
+  const status = useStatusOf(user.id)
+  const shownNote = presence ? STATUS_LABEL[status] : note
+
   return (
     <li data-testid={`friend-${user.id}`} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-hover/50">
-      <Avatar user={user} />
+      <Avatar user={user} status={presence ? status : undefined} />
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 truncate font-semibold">
           {user.display_name}
           {user.is_guest && <GuestBadge />}
           <span className="text-sm font-normal text-zinc-500 opacity-0 transition group-hover:opacity-100">#{user.id}</span>
         </p>
-        {note && <p className="text-xs text-zinc-400">{note}</p>}
+        {shownNote && <p className="text-xs text-zinc-400">{shownNote}</p>}
       </div>
       <div className="flex gap-2">{children}</div>
     </li>

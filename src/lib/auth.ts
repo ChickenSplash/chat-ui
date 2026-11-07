@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, ensureCsrfCookie } from './api'
+import type { Preference } from './presence'
 
 export type User = {
   id: string
   display_name: string
   is_guest: boolean
   email?: string | null
+  /** Your chosen status (online, idle, dnd, invisible). Only ever sent about yourself. */
+  status: Preference
 }
 
-const ME = ['me']
+export const ME = ['me']
 
 export function useMe() {
   return useQuery({

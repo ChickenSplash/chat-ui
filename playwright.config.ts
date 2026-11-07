@@ -11,7 +11,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /mobile\.spec/ },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testIgnore: /mobile\.spec/ },
+    // WebKit needs Ubuntu's libraries, so on Arch run this one in Playwright's own image (see README).
+    { name: 'mobile', use: { ...devices['iPhone 13'] }, testMatch: /mobile\.spec/ },
   ],
 })

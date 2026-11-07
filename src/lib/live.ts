@@ -1,10 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import type { User } from './auth'
+import { ME, type User } from './auth'
 import { addMessage, CONVERSATIONS, removeMessage, type Message } from './conversations'
-import { BLOCKS, FRIENDS } from './friends'
+import { BLOCKS, FRIENDS, type PublicUser } from './friends'
 import { GROUPS, membersKey } from './groups'
+import { PRESENCE, setStatusOf, type Status } from './presence'
 import { useRealtime } from './realtime-context'
+import { startedTyping, stoppedTyping } from './typing'
 
 /** Applies everything HMS pushes on your own channel to the query cache. Mounted once, in the layout. */
 export function useLiveUpdates(user: User) {
@@ -16,17 +18,24 @@ export function useLiveUpdates(user: User) {
     if (!echo) return
 
     const conversations = () => queryClient.invalidateQueries({ queryKey: CONVERSATIONS })
+    // Whose status you can see changes with friendships, blocks and memberships.
+    const presence = () => queryClient.invalidateQueries({ queryKey: PRESENCE })
     const handlers: Record<string, (payload: never) => void> = {
       '.friends.changed': () => {
         queryClient.invalidateQueries({ queryKey: FRIENDS })
         queryClient.invalidateQueries({ queryKey: BLOCKS })
         conversations()
+        presence()
       },
       '.message.sent': (message: Message) => {
         addMessage(queryClient, message)
         conversations()
+        if (message.author) stoppedTyping(message.conversation_id, message.author.id)
         // Joins, kicks and role changes arrive as system messages.
-        if (message.type === 'system') queryClient.invalidateQueries({ queryKey: membersKey(message.conversation_id) })
+        if (message.type === 'system') {
+          queryClient.invalidateQueries({ queryKey: membersKey(message.conversation_id) })
+          presence()
+        }
       },
       '.message.deleted': ({ conversation_id, id }: { conversation_id: number; id: number }) => {
         removeMessage(queryClient, conversation_id, id)
@@ -36,7 +45,15 @@ export function useLiveUpdates(user: User) {
       '.conversations.changed': () => {
         conversations()
         queryClient.invalidateQueries({ queryKey: GROUPS })
+        presence()
       },
+      '.presence.changed': ({ id, status }: { id: string; status: Status }) => {
+        setStatusOf(queryClient, id, status)
+        // Your own status, picked in another tab.
+        if (id === user.id) queryClient.invalidateQueries({ queryKey: ME })
+      },
+      '.typing': ({ conversation_id, user: typist }: { conversation_id: number; user: PublicUser }) =>
+        startedTyping(conversation_id, typist),
     }
 
     // Not echo.leave(): other screens (the ping in settings) listen on the same channel.
@@ -47,6 +64,7 @@ export function useLiveUpdates(user: User) {
     channel.subscribed(() => {
       queryClient.invalidateQueries({ queryKey: FRIENDS })
       conversations()
+      presence()
     })
 
     return () => {

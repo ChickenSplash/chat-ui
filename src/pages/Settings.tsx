@@ -3,11 +3,13 @@ import { Button, Card, ErrorNote, Field, GuestBadge } from '../components/ui'
 import { api, ApiError } from '../lib/api'
 import { useChangePassword, useUpdateProfile, type User } from '../lib/auth'
 import { useRealtime } from '../lib/realtime-context'
+import { NavButton } from '../components/NavButton'
 
 export function Settings({ user }: { user: User }) {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center border-b border-black/20 px-4 shadow-sm">
+        <NavButton />
         <h1 className="font-semibold">Settings</h1>
       </header>
       <div className="flex-1 overflow-y-auto px-6 py-6">

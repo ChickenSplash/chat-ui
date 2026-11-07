@@ -27,8 +27,12 @@ Everything is same-origin: nginx (or the Vite dev server) forwards
 - **Group settings** (`/groups/:id/settings`): details, invite link, bans, leave, delete
 - **Create or join** (`/groups/new`), **Explore** (`/groups/explore`), **Invite** (`/invite/:code`)
 - **Settings** (`/settings`): display name, password, live connection ping
+- **Everywhere:** status dots, a status menu on your avatar, typing indicators and a red "New"
+  line at the first unread message
 
-The layout copies Discord's three columns; the visual design gets an overhaul later.
+The layout copies Discord's three columns; the visual design gets an overhaul later. Under
+768 px it shows the navigation or the page, never both (`src/lib/nav.ts`). It can be installed
+from the browser menu (web app manifest, no service worker).
 
 Sign-in is Sanctum session auth: `GET /sanctum/csrf-cookie` once, then every write sends the
 `XSRF-TOKEN` cookie back as `X-XSRF-TOKEN` (`src/lib/api.ts`). Signed-in users get one Echo
@@ -59,10 +63,21 @@ The container joins the external `edge` network; point the tunnel's public hostn
 
 ## End-to-end tests
 
-Playwright, against a deployed instance (Chromium and Firefox):
+Playwright, against a deployed instance, best a local Docker copy (Chromium and Firefox):
 
 ```bash
-BASE_URL=https://chat.chickensplash.dpdns.org npx playwright test
+BASE_URL=http://localhost:8090 npx playwright test --project=chromium --project=firefox
 ```
+
+The `mobile` project (`tests/mobile.spec.ts`) runs WebKit at iPhone size. WebKit needs
+Ubuntu's libraries, so on Arch run it in Playwright's image:
+
+```bash
+docker run --rm --network host --user "$(id -u):$(id -g)" -e HOME=/tmp -e BASE_URL=http://localhost:8090 \
+  -v "$PWD":/work -w /work mcr.microsoft.com/playwright:v1.65.0-noble npx playwright test --project=mobile
+```
+
+WebKit won't keep a `Secure` cookie over plain `http://localhost`, so a local HMS for it needs
+`SESSION_SECURE_COOKIE=false`.
 
 Registered test accounts use `e2e-*@example.com` addresses; delete them afterwards.

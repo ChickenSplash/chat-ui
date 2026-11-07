@@ -6,11 +6,14 @@ import { ApiError } from '../lib/api'
 import type { User } from '../lib/auth'
 import { useConversation } from '../lib/conversations'
 import { nameOf } from '../lib/friends'
+import { useStatusOf } from '../lib/presence'
+import { NavButton } from '../components/NavButton'
 
 export function DirectMessage({ user }: { user: User }) {
   const id = Number(useParams().id)
   const conversation = useConversation(id)
   const dm = conversation.data
+  const status = useStatusOf(dm?.type === 'dm' ? dm.user?.id : undefined)
 
   if (conversation.error instanceof ApiError && conversation.error.status === 404) return <Navigate to="/" replace />
   if (!dm) return null
@@ -21,7 +24,8 @@ export function DirectMessage({ user }: { user: User }) {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
-        <Avatar user={other} size="sm" />
+        <NavButton />
+        <Avatar user={other} size="sm" status={other ? status : undefined} />
         <h1 className="font-semibold">{nameOf(other)}</h1>
         {other?.is_guest && <GuestBadge />}
         {other && <span className="text-sm text-zinc-500">#{other.id}</span>}

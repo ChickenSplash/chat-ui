@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { Avatar, GroupIcon } from '../components/Avatar'
+import { NavButton } from '../components/NavButton'
 import { Chat } from '../components/Chat'
 import { Icon } from '../components/icons'
 import { GuestBadge } from '../components/ui'
@@ -21,12 +22,14 @@ import {
   useTransferGroup,
   type Member,
 } from '../lib/groups'
+import { usePresence } from '../lib/presence'
 
 export function Group({ user }: { user: User }) {
   const { group, lost } = useGroupPage()
   const members = useMembers(group?.id ?? 0, !!group)
   const blocks = useBlocks()
-  const [showMembers, setShowMembers] = useState(true)
+  // On a phone the member list covers the chat, so it starts closed there.
+  const [showMembers, setShowMembers] = useState(() => matchMedia('(min-width: 768px)').matches)
   const [copied, setCopied] = useState(false)
 
   // Kicked, banned, left in another tab or the group was deleted.
@@ -45,6 +48,7 @@ export function Group({ user }: { user: User }) {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
+        <NavButton />
         <Icon name="hashtag" className="size-5 text-zinc-500" />
         <h1 className="font-semibold">{group.name}</h1>
         {group.description && (
@@ -91,7 +95,9 @@ export function Group({ user }: { user: User }) {
             </>
           }
         />
-        {showMembers && <MemberList me={user} group={group} members={members.data ?? []} />}
+        {showMembers && (
+          <MemberList me={user} group={group} members={members.data ?? []} onClose={() => setShowMembers(false)} />
+        )}
       </div>
     </>
   )
@@ -113,42 +119,52 @@ function HeaderButton({ label, icon, active, onClick }: { label: string; icon: '
 
 const ROLE_ORDER: Role[] = ['owner', 'admin', 'mod', 'member']
 
-function MemberList({ me, group, members }: { me: User; group: GroupData; members: Member[] }) {
+/** Beside the chat on a wide screen; on a phone, a panel over it from the right. */
+function MemberList({ me, group, members, onClose }: { me: User; group: GroupData; members: Member[]; onClose: () => void }) {
   const [open, setOpen] = useState<string | null>(null)
+  const presence = usePresence().data ?? {}
 
   return (
-    <aside aria-label="Members" className="w-60 shrink-0 overflow-y-auto bg-side px-2 py-4">
-      {ROLE_ORDER.map((role) => {
-        const list = members.filter((m) => m.role === role)
-        if (list.length === 0) return null
+    <>
+      <button aria-label="Close member list" onClick={onClose} className="fixed inset-0 z-20 bg-black/60 md:hidden" />
+      <aside
+        aria-label="Members"
+        className="w-60 shrink-0 overflow-y-auto bg-side px-2 py-4 max-md:fixed max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-72 max-md:shadow-2xl"
+      >
+        {ROLE_ORDER.map((role) => {
+          const list = members.filter((m) => m.role === role)
+          if (list.length === 0) return null
 
-        return (
-          <section key={role} className="mb-4">
-            <h2 className="px-2 pb-1 text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-              {role === 'member' ? 'Members' : `${ROLE_LABEL[role]}${role === 'owner' ? '' : 's'}`} · {list.length}
-            </h2>
-            <ul>
-              {list.map((member) => (
-                <li key={member.user.id}>
-                  <button
-                    onClick={() => setOpen(open === member.user.id ? null : member.user.id)}
-                    aria-expanded={open === member.user.id}
-                    className="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-hover/60 hover:text-zinc-100"
-                  >
-                    <Avatar user={member.user} size="sm" />
-                    <span className="min-w-0 flex-1 truncate">{member.user.display_name}</span>
-                    {member.user.is_guest && <GuestBadge />}
-                  </button>
-                  {open === member.user.id && (
-                    <MemberActions me={me} group={group} member={member} onDone={() => setOpen(null)} />
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )
-      })}
-    </aside>
+          return (
+            <section key={role} className="mb-4">
+              <h2 className="px-2 pb-1 text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                {role === 'member' ? 'Members' : `${ROLE_LABEL[role]}${role === 'owner' ? '' : 's'}`} · {list.length}
+              </h2>
+              <ul>
+                {list.map((member) => (
+                  <li key={member.user.id}>
+                    <button
+                      onClick={() => setOpen(open === member.user.id ? null : member.user.id)}
+                      aria-expanded={open === member.user.id}
+                      className={`flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-hover/60 hover:text-zinc-100 hover:opacity-100 ${
+                        presence[member.user.id] ? '' : 'opacity-50'
+                      }`}
+                    >
+                      <Avatar user={member.user} size="sm" status={presence[member.user.id] ?? 'offline'} on="side" />
+                      <span className="min-w-0 flex-1 truncate">{member.user.display_name}</span>
+                      {member.user.is_guest && <GuestBadge />}
+                    </button>
+                    {open === member.user.id && (
+                      <MemberActions me={me} group={group} member={member} onDone={() => setOpen(null)} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )
+        })}
+      </aside>
+    </>
   )
 }
 

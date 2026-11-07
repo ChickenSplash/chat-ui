@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router'
 import { GroupPreview } from '../components/GroupPreview'
+import { NavButton } from '../components/NavButton'
 import { useAcceptInvite, useInvite } from '../lib/groups'
 
 /** Where an invite link lands: what the group is, and a button to join it. */
@@ -9,7 +10,10 @@ export function Invite() {
   const accept = useAcceptInvite()
 
   return (
-    <div className="flex flex-1 items-center justify-center px-6">
+    <div className="relative flex flex-1 items-center justify-center px-6">
+      <div className="absolute top-3 left-4">
+        <NavButton />
+      </div>
       <div className="w-full max-w-md space-y-3 text-center">
         <h1 className="text-xl font-semibold">You've been invited to join a group</h1>
         {invite.isError && (

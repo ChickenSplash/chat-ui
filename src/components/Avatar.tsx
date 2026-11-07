@@ -1,4 +1,5 @@
 import type { PublicUser } from '../lib/friends'
+import { STATUS_DOT, STATUS_LABEL, type Status } from '../lib/presence'
 
 // Spelled out in full so Tailwind finds the classes.
 const COLOURS = [
@@ -20,8 +21,45 @@ function colourFor(id: string) {
   return COLOURS[hash % COLOURS.length]
 }
 
-/** The first letter of their name on a colour picked from their ID, so it stays the same across renames. */
-export function Avatar({ user, size = 'md' }: { user: PublicUser | null; size?: keyof typeof SIZES }) {
+// The dot's border matches what it sits on, so it looks cut out of the avatar.
+const DOT_BORDER = { rail: 'border-rail', side: 'border-side', main: 'border-main' }
+
+/** A status dot on the avatar's corner. */
+export function StatusDot({ status, on, className = 'size-3.5' }: { status: Status; on: keyof typeof DOT_BORDER; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      data-status={status}
+      title={STATUS_LABEL[status]}
+      className={`absolute -right-0.5 -bottom-0.5 rounded-full border-[3px] ${DOT_BORDER[on]} ${STATUS_DOT[status]} ${className}`}
+    />
+  )
+}
+
+/**
+ * The first letter of their name on a colour picked from their ID, so it stays the same
+ * across renames. Give `status` (and what it sits `on`) for an online dot.
+ */
+export function Avatar({
+  user,
+  size = 'md',
+  status,
+  on = 'main',
+}: {
+  user: PublicUser | null
+  size?: keyof typeof SIZES
+  status?: Status
+  on?: keyof typeof DOT_BORDER
+}) {
+  if (status) {
+    return (
+      <span className="relative shrink-0">
+        <Avatar user={user} size={size} />
+        <StatusDot status={status} on={on} className={size === 'sm' ? 'size-3.5' : 'size-4'} />
+      </span>
+    )
+  }
+
   return (
     <span
       aria-hidden

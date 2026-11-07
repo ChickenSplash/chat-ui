@@ -5,12 +5,14 @@ import { Button, ErrorNote, Field } from '../components/ui'
 import { ApiError } from '../lib/api'
 import { inviteCodeFrom, useAcceptInvite, useCreateGroup } from '../lib/groups'
 import { VisibilityChoice } from './GroupSettings'
+import { NavButton } from '../components/NavButton'
 
 /** Discord's "Add a server": create a group, or join one with an invite link. */
 export function NewGroup() {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
+        <NavButton />
         <Icon name="plus" className="size-6 text-zinc-400" />
         <h1 className="font-semibold">Create or join a group</h1>
       </header>

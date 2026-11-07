@@ -1,10 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { User } from '../lib/auth'
 import {
   discardPending,
   markRead,
   sendMessage,
+  useConversations,
   useDeleteMessage,
   useMessages,
   usePending,
@@ -14,6 +15,7 @@ import {
 } from '../lib/conversations'
 import { nameOf, type PublicUser } from '../lib/friends'
 import { describeEvent } from '../lib/groups'
+import { describeTyping, resetTyping, sendTyping, useTyping } from '../lib/typing'
 import { Avatar } from './Avatar'
 import { Icon } from './icons'
 import { Linkified } from './Linkified'
@@ -59,6 +61,8 @@ export function Chat({
   const rows = toRows(messages, pending.filter((p) => !saved.has(p.nonce)), me)
 
   useMarkRead(conversation, messages.at(-1)?.id)
+  const unread = useUnreadDivider(conversation, messages, !!hasNextPage, me)
+  const typing = describeTyping(useTyping(conversation.id))
 
   const olderSentinel = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -71,11 +75,62 @@ export function Chat({
     return () => observer.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
+  // Older pages until the first unread message is loaded, then scroll to it (see the effect below).
+  const [jumping, setJumping] = useState(false)
+  const jump = async () => {
+    setJumping(true)
+    let oldest = messages[0]?.id ?? 0
+    let more = hasNextPage
+    while (more && oldest > (unread.after ?? 0)) {
+      const result = await fetchNextPage()
+      oldest = result.data?.pages.at(-1)?.data[0]?.id ?? 0
+      more = result.hasNextPage
+    }
+  }
+
+  const divider = useRef<HTMLDivElement>(null)
+  const scrollBox = useRef<HTMLDivElement>(null)
+  const [dividerSeen, setDividerSeen] = useState(false)
+  const firstUnreadId = unread.first?.id
+
+  useEffect(() => {
+    if (jumping && divider.current) {
+      divider.current.scrollIntoView({ block: 'center' })
+      setJumping(false)
+    }
+  }, [jumping, firstUnreadId, messages])
+
+  useEffect(() => {
+    const target = divider.current
+    if (!target) return
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && setDividerSeen(true), { root: scrollBox.current })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [firstUnreadId])
+
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {unread.after !== null && !dividerSeen && (
+        <div
+          data-testid="unread-banner"
+          className="absolute inset-x-4 top-0 z-10 flex items-center gap-3 rounded-b-lg bg-indigo-500 px-3 py-1 text-sm font-medium text-white shadow-lg"
+        >
+          <span className="min-w-0 flex-1 truncate">
+            {unread.count} new {unread.count === 1 ? 'message' : 'messages'}
+            {unread.first && ` since ${formatTime(unread.first.created_at, false)}`}
+          </span>
+          <button onClick={jump} className="hover:underline">
+            Jump
+          </button>
+          <button onClick={unread.dismiss} className="hover:underline">
+            Mark as read
+          </button>
+        </div>
+      )}
+
       {/* The scroll box is column-reverse around a single child, so it stays pinned to the
           newest message and loading older ones above does not make it jump. */}
-      <div data-testid="messages" className="flex flex-1 flex-col-reverse overflow-y-auto">
+      <div ref={scrollBox} data-testid="messages" className="flex flex-1 flex-col-reverse overflow-y-auto">
         <div className="pb-4">
           <div ref={olderSentinel} className="min-h-px">
             {isFetchingNextPage && <p className="py-2 text-center text-sm text-zinc-500">Loading older messages…</p>}
@@ -85,17 +140,23 @@ export function Chat({
 
           {rows.map((row) =>
             row.kind === 'saved' ? (
-              row.message.type === 'system' ? (
-                <SystemRow key={row.message.id} message={row.message} />
-              ) : (
-                <SavedRow
-                  key={row.message.id}
-                  row={row}
-                  deletable={canDelete(row.message)}
-                  hidden={!!row.author && !!hiddenAuthors?.has(row.author.id)}
-                  conversationId={conversation.id}
-                />
-              )
+              <Fragment key={row.message.id}>
+                {row.message.id === firstUnreadId && (
+                  <div ref={divider} data-testid="unread-divider" role="separator" aria-label="New messages" className="relative mx-4 mt-4 h-px bg-red-500">
+                    <span className="absolute -top-2 right-0 rounded bg-red-500 px-1 text-[10px] leading-4 font-bold text-white uppercase">New</span>
+                  </div>
+                )}
+                {row.message.type === 'system' ? (
+                  <SystemRow message={row.message} />
+                ) : (
+                  <SavedRow
+                    row={row.message.id === firstUnreadId ? { ...row, grouped: false } : row}
+                    deletable={canDelete(row.message)}
+                    hidden={!!row.author && !!hiddenAuthors?.has(row.author.id)}
+                    conversationId={conversation.id}
+                  />
+                )}
+              </Fragment>
             ) : (
               <PendingRow key={row.message.nonce} row={row} />
             ),
@@ -106,7 +167,13 @@ export function Chat({
       <Composer
         disabledReason={disabledReason}
         placeholder={placeholder}
-        onSend={(body) => !disabledReason && sendMessage(queryClient, conversation.id, body)}
+        typing={typing}
+        onType={() => sendTyping(conversation.id)}
+        onSend={(body) => {
+          if (disabledReason) return
+          resetTyping(conversation.id)
+          sendMessage(queryClient, conversation.id, body)
+        }}
       />
     </div>
   )
@@ -129,6 +196,56 @@ function toRows(messages: Message[], pending: PendingMessage[], me: User): Row[]
   })
 
   return rows
+}
+
+const fromOthers = (message: Message, me: User) => message.type === 'text' && message.author?.id !== me.id
+
+/**
+ * Where the red "New" line goes: after what you had read when you opened the chat, or when
+ * you switched away from the tab with it open. It stays put while you're here, even though
+ * the messages are marked as read, until Esc or "Mark as read".
+ */
+function useUnreadDivider(conversation: Conversation, messages: Message[], hasOlder: boolean, me: User) {
+  // The list is kept fresh by live events; a single conversation's cache may be stale.
+  const listed = useConversations().data?.find((c) => c.id === conversation.id) ?? conversation
+  const [{ after, count }, setUnread] = useState(() => ({
+    after: listed.unread_count > 0 ? (listed.last_read_message_id ?? 0) : null,
+    count: listed.unread_count,
+  }))
+
+  const newest = messages.at(-1)
+  const seenUpTo = useRef(0)
+
+  useEffect(() => {
+    if (!newest) return
+    if (document.visibilityState === 'visible') {
+      seenUpTo.current = newest.id
+    } else if (after === null && fromOthers(newest, me) && newest.id > seenUpTo.current) {
+      setUnread({ after: seenUpTo.current, count: 0 })
+    }
+  }, [newest, after, me])
+
+  const dismiss = () => setUnread({ after: null, count: 0 })
+
+  useEffect(() => {
+    if (after === null) return
+    const onKey = (event: globalThis.KeyboardEvent) => event.key === 'Escape' && dismiss()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [after])
+
+  const unreadLoaded = after === null ? [] : messages.filter((m) => m.id > after && fromOthers(m, me))
+  // Only once the page holding it has loaded, or the line would sit too low.
+  const reachesBack = !hasOlder || (after !== null && messages.some((m) => m.id <= after))
+  const first = reachesBack ? unreadLoaded[0] : undefined
+
+  return {
+    after,
+    first,
+    // Until the oldest unread is loaded, the count from when you opened the chat.
+    count: Math.max(count, unreadLoaded.length),
+    dismiss,
+  }
 }
 
 /** Read up to the newest message whenever it changes and the tab is visible. */
@@ -290,10 +407,14 @@ function PendingRow({ row }: { row: Extract<Row, { kind: 'pending' }> }) {
 function Composer({
   placeholder,
   disabledReason,
+  typing,
+  onType,
   onSend,
 }: {
   placeholder: string
   disabledReason?: string
+  typing: string | null
+  onType: () => void
   onSend: (body: string) => void
 }) {
   const [body, setBody] = useState('')
@@ -316,7 +437,7 @@ function Composer({
   }
 
   return (
-    <div className="shrink-0 px-4 pb-6">
+    <div className="shrink-0 px-4">
       {disabledReason ? (
         <p className="rounded-lg bg-field px-4 py-3 text-sm text-zinc-400">{disabledReason}</p>
       ) : (
@@ -326,7 +447,10 @@ function Composer({
             rows={1}
             value={body}
             maxLength={MAX_LENGTH}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              setBody(e.target.value)
+              if (e.target.value.trim()) onType()
+            }}
             onKeyDown={onKeyDown}
             placeholder={placeholder}
             aria-label={placeholder}
@@ -338,6 +462,24 @@ function Composer({
           )}
         </div>
       )}
+      <p data-testid="typing" aria-live="polite" className="flex h-6 items-center gap-1.5 truncate text-xs text-zinc-300">
+        {typing && (
+          <>
+            <TypingDots />
+            {typing}
+          </>
+        )}
+      </p>
     </div>
+  )
+}
+
+function TypingDots() {
+  return (
+    <span aria-hidden className="flex gap-0.5">
+      {[0, 150, 300].map((delay) => (
+        <span key={delay} className="size-1 animate-bounce rounded-full bg-zinc-300" style={{ animationDelay: `${delay}ms` }} />
+      ))}
+    </span>
   )
 }
