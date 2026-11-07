@@ -1,14 +1,90 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button, Card, ErrorNote, Field, GuestBadge } from '../components/ui'
-import { ApiError } from '../lib/api'
+import { api, ApiError } from '../lib/api'
 import { useChangePassword, useUpdateProfile, type User } from '../lib/auth'
+import { useRealtime } from '../lib/realtime-context'
 
-export function Profile({ user }: { user: User }) {
+export function Settings({ user }: { user: User }) {
   return (
-    <div className="max-w-md space-y-6">
-      <DisplayNameForm user={user} />
-      {!user.is_guest && <PasswordForm />}
-    </div>
+    <>
+      <header className="flex h-12 shrink-0 items-center border-b border-black/20 px-4 shadow-sm">
+        <h1 className="font-semibold">Settings</h1>
+      </header>
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="max-w-md space-y-6">
+          <DisplayNameForm user={user} />
+          {!user.is_guest && <PasswordForm />}
+          <Connection user={user} />
+        </div>
+      </div>
+    </>
+  )
+}
+
+type Ping = { sentAt: number; roundTrip?: number }
+
+/** A ping goes to HMS and comes back over the WebSocket: a quick health check of live updates. */
+function Connection({ user }: { user: User }) {
+  const { echo, state } = useRealtime()
+  const [ping, setPing] = useState<Ping | null>(null)
+  const [error, setError] = useState<string>()
+  const pending = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!echo) return
+
+    const onPing = () => {
+      if (pending.current === null) return
+      const sentAt = pending.current
+      pending.current = null
+      setPing({ sentAt, roundTrip: Math.round(performance.now() - sentAt) })
+    }
+
+    // Not echo.leave(): the layout listens on the same channel for messages and friends.
+    const channel = echo.private(`user.${user.id}`)
+    channel.listen('.ping', onPing)
+    return () => {
+      channel.stopListening('.ping', onPing)
+    }
+  }, [echo, user.id])
+
+  const sendPing = async () => {
+    setError(undefined)
+    const sentAt = performance.now()
+    pending.current = sentAt
+    setPing({ sentAt })
+
+    try {
+      await api('POST', '/api/ping')
+    } catch (e) {
+      pending.current = null
+      setPing(null)
+      setError(e instanceof Error ? e.message : 'Ping failed.')
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Live connection</h2>
+          <p className="text-sm text-zinc-500">
+            Status: <span data-testid="connection-state">{state}</span>
+          </p>
+        </div>
+        <Button onClick={sendPing} disabled={state !== 'connected' || (ping !== null && ping.roundTrip === undefined)}>
+          Ping
+        </Button>
+      </div>
+      <div className="mt-4 space-y-2">
+        <ErrorNote>{error}</ErrorNote>
+        {ping && (
+          <p data-testid="ping-result" className="text-sm">
+            {ping.roundTrip === undefined ? 'Waiting for the echo…' : `Pong in ${ping.roundTrip} ms`}
+          </p>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -28,7 +104,10 @@ function DisplayNameForm({ user }: { user: User }) {
         Profile {user.is_guest && <GuestBadge />}
       </h1>
       <p className="mb-6 text-sm text-zinc-500">
-        {user.is_guest ? 'Guest account' : user.email} · ID <code className="font-mono">#{user.id}</code>
+        {user.is_guest ? 'Guest account' : user.email} · ID{' '}
+        <code data-testid="public-id" className="font-mono">
+          #{user.id}
+        </code>
       </p>
 
       <form onSubmit={submit} className="space-y-4">

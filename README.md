@@ -18,9 +18,19 @@ Everything is same-origin: nginx (or the Vite dev server) forwards
 - `/api/` and `/sanctum/` to `hms:3000`
 - `/app/` (WebSocket) to `hms-reverb:8080`
 
+## Screens
+
+- **Welcome:** join as a guest, log in or register
+- **Friends** (`/`): All, Pending, Blocked, Add Friend by ID
+- **DM** (`/dm/:id`): messages show grey until HMS saves them, red with Retry / Discard on failure
+- **Settings** (`/settings`): display name, password, live connection ping
+
+The layout copies Discord's three columns; the visual design gets an overhaul later.
+
 Sign-in is Sanctum session auth: `GET /sanctum/csrf-cookie` once, then every write sends the
 `XSRF-TOKEN` cookie back as `X-XSRF-TOKEN` (`src/lib/api.ts`). Signed-in users get one Echo
-connection (`src/lib/realtime.tsx`) and listen on their private `user.{id}` channel.
+connection (`src/lib/realtime.tsx`) and listen on their private `user.{id}` channel;
+`src/lib/live.ts` applies every event there (friends, messages, reads) to the query cache.
 
 ## Develop
 

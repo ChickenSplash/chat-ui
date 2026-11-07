@@ -1,42 +1,32 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { logOut, ownIp, unique } from './helpers'
 
-// HMS rate limits sign-ins per CF-Connecting-IP. Off Cloudflare nothing overwrites the
-// header, so each test claims its own address instead of sharing one budget.
-test.beforeEach(async ({ context }) => {
-  const octet = () => Math.floor(Math.random() * 254) + 1
-  await context.setExtraHTTPHeaders({ 'CF-Connecting-IP': `10.${octet()}.${octet()}.${octet()}` })
-})
-
-const unique = () => Math.random().toString(36).slice(2, 10)
-
-async function logOut(page: Page) {
-  page.once('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Log out' }).click()
-  await expect(page.getByRole('tab', { name: 'Join as guest' })).toBeVisible()
-}
+test.beforeEach(({ context }) => ownIp(context))
 
 test('a guest joins, pings over the WebSocket, renames and leaves', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Display name').fill('Smoke Guest')
   await page.getByRole('button', { name: 'Join' }).click()
 
-  await expect(page.getByText('Connected as')).toBeVisible()
+  await expect(page.getByTestId('me')).toContainText('Smoke Guest')
+  await expect(page.getByRole('heading', { name: 'Friends', exact: true })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Settings' }).click()
   await expect(page.getByTestId('public-id')).toHaveText(/^#[a-z2-9]{8}$/)
   await expect(page.getByTestId('connection-state')).toHaveText('connected')
 
   await page.getByRole('button', { name: 'Ping' }).click()
   await expect(page.getByTestId('ping-result')).toHaveText(/Pong in \d+ ms/)
 
-  await page.getByRole('link', { name: 'Profile' }).click()
   await page.getByLabel('Display name').fill('Renamed Guest')
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByText('Saved')).toBeVisible()
-  await expect(page.locator('header')).toContainText('Renamed Guest')
+  await expect(page.getByTestId('me')).toContainText('Renamed Guest')
   await expect(page.getByRole('heading', { name: 'Password' })).toHaveCount(0)
 
   // A reload keeps the session.
   await page.reload()
-  await expect(page.locator('header')).toContainText('Renamed Guest')
+  await expect(page.getByTestId('me')).toContainText('Renamed Guest')
 
   await logOut(page)
 })
@@ -51,8 +41,7 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
   await page.getByLabel('Password', { exact: true }).fill('a-long-password')
   await page.getByLabel('Confirm password').fill('a-long-password')
   await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page.getByText('Connected as')).toBeVisible()
-  await expect(page.locator('header')).not.toContainText('guest')
+  await expect(page.getByTestId('me')).toHaveText('E2E User')
 
   await logOut(page)
 
@@ -64,9 +53,9 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
 
   await page.getByLabel('Password').fill('a-long-password')
   await page.getByRole('button', { name: 'Log in' }).click()
-  await expect(page.getByText('Connected as')).toBeVisible()
+  await expect(page.getByTestId('me')).toHaveText('E2E User')
 
-  await page.getByRole('link', { name: 'Profile' }).click()
+  await page.getByRole('link', { name: 'Settings' }).click()
   await expect(page.getByText(email)).toBeVisible()
 
   await page.getByLabel('Current password').fill('a-long-password')
@@ -80,7 +69,7 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill('another-long-password')
   await page.getByRole('button', { name: 'Log in' }).click()
-  // Signing back in keeps the page you were on (the profile).
+  // Signing back in keeps the page you were on (settings).
   await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible()
 })
 

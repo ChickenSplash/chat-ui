@@ -3,8 +3,9 @@ import { Layout } from './components/Layout'
 import { ErrorNote } from './components/ui'
 import { useMe } from './lib/auth'
 import { RealtimeProvider } from './lib/realtime'
-import { Home } from './pages/Home'
-import { Profile } from './pages/Profile'
+import { DirectMessage } from './pages/DirectMessage'
+import { Friends } from './pages/Friends'
+import { Settings } from './pages/Settings'
 import { Welcome } from './pages/Welcome'
 
 export default function App() {
@@ -28,8 +29,9 @@ export default function App() {
     <RealtimeProvider user={user}>
       <Routes>
         <Route element={<Layout user={user} />}>
-          <Route index element={<Home user={user} />} />
-          <Route path="profile" element={<Profile user={user} />} />
+          <Route index element={<Friends />} />
+          <Route path="dm/:id" element={<DirectMessage user={user} />} />
+          <Route path="settings" element={<Settings user={user} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
