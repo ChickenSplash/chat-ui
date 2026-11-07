@@ -7,11 +7,13 @@ import {
   sendMessage,
   useConversations,
   useDeleteMessage,
+  useEditMessage,
   useMessages,
   usePending,
   type Conversation,
   type Message,
   type PendingMessage,
+  type ReplyPreview,
 } from '../lib/conversations'
 import { nameOf, type PublicUser } from '../lib/friends'
 import { describeEvent } from '../lib/groups'
@@ -54,6 +56,48 @@ export function Chat({
   const queryClient = useQueryClient()
   const { messages, fetchNextPage, hasNextPage, isFetchingNextPage, isSuccess } = useMessages(conversation.id)
   const pending = usePending(conversation.id)
+  const [editing, setEditing] = useState<number | null>(null)
+  const [replyTo, setReplyTo] = useState<ReplyPreview | null>(null)
+  const composer = useRef<HTMLTextAreaElement>(null)
+  const [jumpTarget, setJumpTarget] = useState<number | null>(null)
+  const [highlighted, setHighlighted] = useState<number | null>(null)
+  const [jumpError, setJumpError] = useState('')
+
+  const jumpToMessage = async (id: number) => {
+    setJumpError('')
+    try {
+      let loaded = messages
+      let more = hasNextPage
+      while (!loaded.some((m) => m.id === id) && more) {
+        const result = await fetchNextPage()
+        if (result.isError) throw result.error
+        loaded = result.data?.pages.flatMap((page) => page.data) ?? []
+        more = result.hasNextPage
+      }
+      if (!loaded.some((m) => m.id === id)) {
+        setJumpError('Original message is no longer available.')
+        return
+      }
+      setJumpTarget(id)
+    } catch {
+      setJumpError('Could not load the original message. Try again.')
+    }
+  }
+
+  useEffect(() => {
+    if (jumpTarget === null) return
+    const target = scrollBox.current?.querySelector(`[data-message-id="${jumpTarget}"]`)
+    if (!target) return
+    target.scrollIntoView({ block: 'center' })
+    setHighlighted(jumpTarget)
+    setJumpTarget(null)
+  }, [jumpTarget, messages])
+
+  useEffect(() => {
+    if (highlighted === null) return
+    const timer = setTimeout(() => setHighlighted(null), 2000)
+    return () => clearTimeout(timer)
+  }, [highlighted])
 
   // Once the saved copy of a pending message arrives (HTTP reply or WebSocket, whichever is
   // first), the grey copy disappears.
@@ -154,6 +198,20 @@ export function Chat({
                     deletable={canDelete(row.message)}
                     hidden={!!row.author && !!hiddenAuthors?.has(row.author.id)}
                     conversationId={conversation.id}
+                    editable={!disabledReason && row.author?.id === me.id}
+                    editing={editing === row.message.id}
+                    onEdit={() => setEditing(row.message.id)}
+                    onEndEdit={() => {
+                      setEditing(null)
+                      composer.current?.focus()
+                    }}
+                    onReply={disabledReason ? undefined : () => {
+                      setReplyTo({ id: row.message.id, author: row.author, body: [...row.message.body].slice(0, 200).join(''), deleted: false })
+                      composer.current?.focus()
+                    }}
+                    onJump={jumpToMessage}
+                    hiddenAuthors={hiddenAuthors}
+                    highlighted={highlighted === row.message.id}
                   />
                 )}
               </Fragment>
@@ -164,7 +222,21 @@ export function Chat({
         </div>
       </div>
 
+      {jumpError && (
+        <p role="alert" className="px-4 text-sm text-red-400">{jumpError}</p>
+      )}
+
       <Composer
+        onInputReady={(node) => { composer.current = node }}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+        onEditLatest={() => {
+          const latest = messages.findLast((m) => m.type === 'text' && m.author?.id === me.id)
+          if (latest) {
+            setEditing(latest.id)
+            void jumpToMessage(latest.id)
+          }
+        }}
         disabledReason={disabledReason}
         placeholder={placeholder}
         typing={typing}
@@ -172,7 +244,8 @@ export function Chat({
         onSend={(body) => {
           if (disabledReason) return
           resetTyping(conversation.id)
-          sendMessage(queryClient, conversation.id, body)
+          sendMessage(queryClient, conversation.id, body, undefined, replyTo)
+          setReplyTo(null)
         }}
       />
     </div>
@@ -190,6 +263,7 @@ function toRows(messages: Message[], pending: PendingMessage[], me: User): Row[]
     row.grouped =
       !!prev &&
       !!row.author &&
+      !(row.kind === 'saved' ? row.message.reply_to : row.message.replyTo) &&
       !(prev.kind === 'saved' && prev.message.type === 'system') &&
       prev.author?.id === row.author.id &&
       new Date(row.at).getTime() - new Date(prev.at).getTime() < GROUP_WINDOW_MS
@@ -289,6 +363,11 @@ function RowShell({
   return (
     <div
       data-testid={testId}
+      data-message-id={row.kind === 'saved' ? row.message.id : undefined}
+      tabIndex={0}
+      onClick={(event) => {
+        if (!(event.target as HTMLElement).closest('button, textarea, a')) event.currentTarget.focus()
+      }}
       className={`group relative flex gap-4 px-4 hover:bg-black/10 ${row.grouped ? 'py-0.5' : 'mt-4 py-0.5'}`}
     >
       <div className="w-10 shrink-0">
@@ -309,7 +388,7 @@ function RowShell({
         )}
         {children}
       </div>
-      {tools && <div className="absolute -top-3 right-4 hidden rounded bg-side shadow ring-1 ring-black/20 group-hover:flex">{tools}</div>}
+      {tools && <div className="absolute -top-3 right-4 hidden rounded bg-side shadow ring-1 ring-black/20 group-hover:flex group-focus-within:flex">{tools}</div>}
     </div>
   )
 }
@@ -333,18 +412,34 @@ function SavedRow({
   deletable,
   hidden,
   conversationId,
+  editable,
+  editing,
+  onEdit,
+  onEndEdit,
+  onReply,
+  onJump,
+  hiddenAuthors,
+  highlighted,
 }: {
   row: Extract<Row, { kind: 'saved' }>
   deletable: boolean
   hidden: boolean
   conversationId: number
+  editable: boolean
+  editing: boolean
+  onEdit: () => void
+  onEndEdit: () => void
+  onReply?: () => void
+  onJump: (id: number) => void
+  hiddenAuthors?: Set<string>
+  highlighted: boolean
 }) {
   const remove = useDeleteMessage(conversationId)
   const [revealed, setRevealed] = useState(false)
 
   if (hidden && !revealed) {
     return (
-      <div data-testid="message-blocked" className="mt-2 px-4 py-0.5 pl-18 text-sm text-zinc-500">
+      <div data-testid="message-blocked" data-message-id={row.message.id} className="mt-2 px-4 py-0.5 pl-18 text-sm text-zinc-500">
         Blocked message ·{' '}
         <button onClick={() => setRevealed(true)} className="font-medium text-zinc-400 hover:underline">
           Show
@@ -358,22 +453,98 @@ function SavedRow({
       row={row}
       testId="message"
       tools={
-        deletable && (
-          <button
-            aria-label="Delete message"
-            title="Delete message"
-            onClick={() => confirm('Delete this message?') && remove.mutate(row.message.id)}
-            className="p-1.5 text-zinc-400 hover:text-red-400"
-          >
-            <Icon name="trash" className="size-4" />
-          </button>
-        )
+        <>
+          {onReply && (
+            <button aria-label="Reply to message" title="Reply" onClick={onReply} className="p-1.5 text-xs text-zinc-400 hover:text-white">
+              Reply
+            </button>
+          )}
+          {editable && (
+            <button aria-label="Edit message" title="Edit" onClick={onEdit} className="p-1.5 text-xs text-zinc-400 hover:text-white">
+              Edit
+            </button>
+          )}
+          {deletable && (
+            <button
+              aria-label="Delete message"
+              title="Delete message"
+              onClick={() => confirm('Delete this message?') && remove.mutate(row.message.id)}
+              className="p-1.5 text-zinc-400 hover:text-red-400"
+            >
+              <Icon name="trash" className="size-4" />
+            </button>
+          )}
+        </>
       }
     >
-      <p className="break-words whitespace-pre-wrap text-zinc-100">
-        <Linkified text={row.message.body} />
-      </p>
+      {row.message.reply_to && <ReplyQuote reply={row.message.reply_to} onJump={onJump} hiddenAuthors={hiddenAuthors} />}
+      {editing && editable ? (
+        <MessageEditor key={row.message.id} message={row.message} onDone={onEndEdit} />
+      ) : (
+        <p className={`break-words whitespace-pre-wrap text-zinc-100 ${highlighted ? 'rounded bg-indigo-500/20' : ''}`}>
+          <Linkified text={row.message.body} />
+          {row.message.edited_at && (
+            <span title={new Date(row.message.edited_at).toLocaleString()} className="ml-1 text-[10px] text-zinc-500">(edited)</span>
+          )}
+        </p>
+      )}
     </RowShell>
+  )
+}
+
+function ReplyQuote({ reply, onJump, hiddenAuthors }: { reply: ReplyPreview; onJump?: (id: number) => void; hiddenAuthors?: Set<string> }) {
+  const hidden = !!reply.author && hiddenAuthors?.has(reply.author.id)
+  return (
+    <button
+      type="button"
+      data-testid="reply-preview"
+      disabled={reply.deleted || !onJump}
+      onClick={() => onJump?.(reply.id)}
+      className="mb-1 block w-full truncate border-l-2 border-zinc-500 pl-2 text-left text-xs text-zinc-400 enabled:hover:text-zinc-200"
+    >
+      {reply.deleted ? 'Original message deleted' : hidden ? 'Blocked message' : (
+        <><strong>{nameOf(reply.author)}</strong>: {reply.body}</>
+      )}
+    </button>
+  )
+}
+
+function MessageEditor({ message, onDone }: { message: Message; onDone: () => void }) {
+  const [body, setBody] = useState(message.body)
+  const edit = useEditMessage(message.conversation_id)
+  const save = () => {
+    if (body.trim() && !edit.isPending) edit.mutate({ id: message.id, body: body.trim() }, { onSuccess: onDone })
+  }
+  return (
+    <div className="rounded bg-field p-2">
+      <textarea
+        aria-label="Edit message text"
+        autoFocus
+        value={body}
+        maxLength={MAX_LENGTH}
+        disabled={edit.isPending}
+        onChange={(e) => setBody(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing) return
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            onDone()
+          }
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            save()
+          }
+        }}
+        className="block w-full resize-y bg-transparent text-zinc-100 outline-none"
+      />
+      {edit.isError && (
+        <p role="alert" className="text-sm text-red-400">{edit.error.message || 'Could not save. Try again.'}</p>
+      )}
+      <p className="flex gap-3 text-xs text-zinc-400">
+        <button disabled={edit.isPending} onClick={onDone}>Cancel (Esc)</button>
+        <button disabled={!body.trim() || edit.isPending} onClick={save} className="text-indigo-300">Save (Enter)</button>
+      </p>
+    </div>
   )
 }
 
@@ -384,6 +555,7 @@ function PendingRow({ row }: { row: Extract<Row, { kind: 'pending' }> }) {
 
   return (
     <RowShell row={row} testId={failed ? 'message-failed' : 'message-pending'}>
+      {message.replyTo && <ReplyQuote reply={message.replyTo} />}
       <p className={`break-words whitespace-pre-wrap ${failed ? 'text-red-400' : 'text-zinc-500'}`}>{message.body}</p>
       {failed && (
         <p className="text-xs text-red-400">
@@ -410,12 +582,20 @@ function Composer({
   typing,
   onType,
   onSend,
+  onInputReady,
+  replyTo,
+  onCancelReply,
+  onEditLatest,
 }: {
   placeholder: string
   disabledReason?: string
   typing: string | null
   onType: () => void
   onSend: (body: string) => void
+  onInputReady: (node: HTMLTextAreaElement | null) => void
+  replyTo: ReplyPreview | null
+  onCancelReply: () => void
+  onEditLatest: () => void
 }) {
   const [body, setBody] = useState('')
   const input = useRef<HTMLTextAreaElement>(null)
@@ -429,7 +609,18 @@ function Composer({
   }, [body])
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+    if (event.nativeEvent.isComposing) return
+    if (event.key === 'Escape' && replyTo) {
+      event.stopPropagation()
+      onCancelReply()
+      return
+    }
+    if (event.key === 'ArrowUp' && !body && !replyTo) {
+      event.preventDefault()
+      onEditLatest()
+      return
+    }
+    if (event.key !== 'Enter' || event.shiftKey) return
     event.preventDefault()
     if (!body.trim()) return
     onSend(body.trim())
@@ -438,12 +629,21 @@ function Composer({
 
   return (
     <div className="shrink-0 px-4">
+      {replyTo && !disabledReason && (
+        <div data-testid="replying-to" className="flex items-center gap-2 rounded-t bg-side px-3 py-2 text-xs text-zinc-300">
+          <span className="min-w-0 flex-1 truncate">Replying to <strong>{nameOf(replyTo.author)}</strong>: {replyTo.body}</span>
+          <button aria-label="Cancel reply" onClick={onCancelReply}>✕</button>
+        </div>
+      )}
       {disabledReason ? (
         <p className="rounded-lg bg-field px-4 py-3 text-sm text-zinc-400">{disabledReason}</p>
       ) : (
         <div className="rounded-lg bg-field px-4 py-2.5">
           <textarea
-            ref={input}
+            ref={(node) => {
+              input.current = node
+              onInputReady(node)
+            }}
             rows={1}
             value={body}
             maxLength={MAX_LENGTH}

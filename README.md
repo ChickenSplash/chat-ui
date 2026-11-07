@@ -29,8 +29,13 @@ Everything is same-origin: nginx (or the Vite dev server) forwards
 - **Settings** (`/settings`): display name, password, live connection ping
 - **Everywhere:** status dots, a status menu on your avatar, typing indicators and a red "New"
   line at the first unread message
+- **Messages:** edit your own text (inline, Enter saves, Esc cancels, Up in an empty composer
+  edits your latest loaded message), and reply with a clickable original-message preview.
+  Edits and deletions update reply previews live. Hover/focus a message for tools, or tap it
+  on a phone. Failed edits retain your draft; failed reply retries keep their original target.
 
-The layout copies Discord's three columns; the visual design gets an overhaul later. Under
+The layout copies Discord's three columns. The implementation plan is closed after editing
+and replies; further features and the visual redesign are deferred. Under
 768 px it shows the navigation or the page, never both (`src/lib/nav.ts`). It can be installed
 from the browser menu (web app manifest, no service worker).
 

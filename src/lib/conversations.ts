@@ -21,7 +21,10 @@ export type Message = {
   nonce: string | null
   created_at: string
   edited_at: string | null
+  reply_to: ReplyPreview | null
 }
+
+export type ReplyPreview = { id: number; author: PublicUser | null; body: string | null; deleted: boolean }
 
 export type Role = 'owner' | 'admin' | 'mod' | 'member'
 
@@ -110,8 +113,47 @@ export function addMessage(queryClient: QueryClient, message: Message) {
 
 export function removeMessage(queryClient: QueryClient, conversationId: number, id: number) {
   queryClient.setQueryData<InfiniteData<Page>>(messagesKey(conversationId), (data) =>
-    data && { ...data, pages: data.pages.map((page) => ({ ...page, data: page.data.filter((m) => m.id !== id) })) },
+    data && {
+      ...data,
+      pages: data.pages.map((page) => ({
+        ...page,
+        data: page.data.filter((m) => m.id !== id).map((m) => m.reply_to?.id === id
+          ? { ...m, reply_to: { id, author: null, body: null, deleted: true } } : m),
+      })),
+    },
   )
+}
+
+/** Replace in place, including previews of replies whose original isn't in the loaded pages. */
+export function updateMessage(queryClient: QueryClient, message: Message) {
+  queryClient.setQueryData<InfiniteData<Page>>(messagesKey(message.conversation_id), (data) =>
+    data && {
+      ...data,
+      pages: data.pages.map((page) => ({
+        ...page,
+        data: page.data.map((m) => {
+          if (m.id === message.id) return message
+          if (m.reply_to?.id !== message.id) return m
+          return {
+            ...m,
+            reply_to: { id: message.id, author: message.author, body: [...message.body].slice(0, 200).join(''), deleted: false },
+          }
+        }),
+      })),
+    },
+  )
+}
+
+export function useEditMessage(conversationId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: string }) =>
+      api<Message>('PATCH', `/api/conversations/${conversationId}/messages/${id}`, { body }),
+    onSuccess: (message) => {
+      updateMessage(queryClient, message)
+      queryClient.invalidateQueries({ queryKey: CONVERSATIONS })
+    },
+  })
 }
 
 // Messages on their way to the server. Shown greyed out until HMS confirms them, at which
@@ -124,6 +166,7 @@ export type PendingMessage = {
   createdAt: string
   status: 'sending' | 'failed'
   error?: string
+  replyTo?: ReplyPreview | null
 }
 
 let pending: PendingMessage[] = []
@@ -147,15 +190,19 @@ export function usePending(conversationId: number) {
 const newNonce = () =>
   typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-export async function sendMessage(queryClient: QueryClient, conversationId: number, body: string, nonce = newNonce()) {
+export async function sendMessage(queryClient: QueryClient, conversationId: number, body: string, nonce = newNonce(), replyTo?: ReplyPreview | null) {
   const existing = pending.find((p) => p.nonce === nonce)
   const entry: PendingMessage = existing
     ? { ...existing, status: 'sending', error: undefined }
-    : { nonce, conversationId, body, createdAt: new Date().toISOString(), status: 'sending' }
+    : { nonce, conversationId, body, replyTo, createdAt: new Date().toISOString(), status: 'sending' }
   setPending(existing ? pending.map((p) => (p.nonce === nonce ? entry : p)) : [...pending, entry])
 
   try {
-    const saved = await api<Message>('POST', `/api/conversations/${conversationId}/messages`, { body, nonce })
+    const saved = await api<Message>('POST', `/api/conversations/${conversationId}/messages`, {
+      body,
+      nonce,
+      reply_to_message_id: entry.replyTo?.id ?? null,
+    })
     addMessage(queryClient, saved)
     setPending(pending.filter((p) => p.nonce !== nonce))
     queryClient.invalidateQueries({ queryKey: CONVERSATIONS })
@@ -163,7 +210,7 @@ export async function sendMessage(queryClient: QueryClient, conversationId: numb
     const reason =
       error instanceof ApiError && error.status === 429
         ? 'Slow down a little.'
-        : error instanceof ApiError && error.status !== 422 && error.status < 500
+        : error instanceof ApiError && error.status < 500
           ? error.message
           : 'Failed to send.'
     setPending(pending.map((p) => (p.nonce === nonce ? { ...p, status: 'failed', error: reason } : p)))

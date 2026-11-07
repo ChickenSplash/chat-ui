@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { ME, type User } from './auth'
-import { addMessage, CONVERSATIONS, removeMessage, type Message } from './conversations'
+import { addMessage, CONVERSATIONS, removeMessage, updateMessage, type Message } from './conversations'
 import { BLOCKS, FRIENDS, type PublicUser } from './friends'
 import { GROUPS, membersKey } from './groups'
 import { PRESENCE, setStatusOf, type Status } from './presence'
@@ -39,6 +39,10 @@ export function useLiveUpdates(user: User) {
       },
       '.message.deleted': ({ conversation_id, id }: { conversation_id: number; id: number }) => {
         removeMessage(queryClient, conversation_id, id)
+        conversations()
+      },
+      '.message.updated': (message: Message) => {
+        updateMessage(queryClient, message)
         conversations()
       },
       '.conversation.read': conversations,
