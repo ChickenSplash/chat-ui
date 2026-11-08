@@ -13,7 +13,7 @@ const COLOURS = [
   'bg-orange-600',
 ]
 
-const SIZES = { sm: 'size-8 text-sm', md: 'size-10 text-base' }
+const SIZES = { sm: 'size-8 text-sm', md: 'size-10 text-base', lg: 'size-20 text-3xl' }
 
 function colourFor(id: string) {
   let hash = 0

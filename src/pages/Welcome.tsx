@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Icon } from '../components/icons'
 import { Button, Card, ErrorNote, Field } from '../components/ui'
 import { ApiError } from '../lib/api'
 import { useJoinAsGuest, useLogin, useRegister } from '../lib/auth'
@@ -14,11 +15,11 @@ const TABS: { id: Tab; label: string }[] = [
 /** Required to join or register. Opens in a new tab so the form keeps what's typed. */
 function AgreeToTerms() {
   return (
-    <label className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-      <input type="checkbox" required className="mt-0.5" />
+    <label className="flex items-start gap-2 text-sm text-zinc-400">
+      <input type="checkbox" required className="mt-0.5 accent-indigo-500" />
       <span>
         I'm 18 or over and agree to the{' '}
-        <a href="/terms" target="_blank" rel="noopener" className="text-indigo-600 hover:underline dark:text-indigo-400">
+        <a href="/terms" target="_blank" rel="noopener" className="text-sky-400 hover:underline">
           terms and privacy policy
         </a>
       </span>
@@ -42,34 +43,37 @@ export function Welcome() {
   const [tab, setTab] = useState<Tab>('guest')
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-12">
-      <h1 className="mb-1 text-center text-3xl font-bold tracking-tight">Chat</h1>
-      <p className="mb-8 text-center text-zinc-500">Talk to friends, groups, anyone.</p>
+    <div className="min-h-dvh bg-rail text-zinc-100">
+      <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-12">
+        <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-indigo-500 text-white shadow-lg">
+          <Icon name="chat" className="size-8" />
+        </span>
+        <h1 className="mb-1 text-center text-2xl font-bold tracking-tight text-white">Welcome to Chat</h1>
+        <p className="mb-8 text-center text-zinc-400">Talk to friends, groups, anyone.</p>
 
-      <Card>
-        <div role="tablist" className="mb-6 grid grid-cols-3 gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
-          {TABS.map(({ id, label }) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={tab === id}
-              onClick={() => setTab(id)}
-              className={`rounded-md px-2 py-1.5 text-sm font-medium transition ${
-                tab === id
-                  ? 'bg-white shadow-sm dark:bg-zinc-950'
-                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <Card>
+          <div role="tablist" className="mb-6 grid grid-cols-3 gap-1 rounded-lg bg-rail p-1">
+            {TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`rounded-md px-2 py-1.5 text-sm font-medium transition ${
+                  tab === id ? 'bg-hover text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-        {tab === 'guest' && <GuestForm />}
-        {tab === 'login' && <LoginForm />}
-        {tab === 'register' && <RegisterForm />}
-      </Card>
-    </main>
+          {tab === 'guest' && <GuestForm />}
+          {tab === 'login' && <LoginForm />}
+          {tab === 'register' && <RegisterForm />}
+        </Card>
+      </main>
+    </div>
   )
 }
 
@@ -95,9 +99,6 @@ function GuestForm() {
         autoFocus
         error={field('display_name')}
       />
-      <p className="text-sm text-zinc-500">
-        No account needed. Your guest account is deleted when you log out.
-      </p>
       <AgreeToTerms />
       <Button type="submit" className="w-full" disabled={join.isPending}>
         {join.isPending ? 'Joining…' : 'Join'}
@@ -140,8 +141,8 @@ function LoginForm() {
         required
         error={field('password')}
       />
-      <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+      <label className="flex items-center gap-2 text-sm text-zinc-400">
+        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="accent-indigo-500" />
         Remember me
       </label>
       <Button type="submit" className="w-full" disabled={login.isPending}>

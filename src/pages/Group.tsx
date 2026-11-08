@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { Avatar, GroupIcon } from '../components/Avatar'
 import { NavButton } from '../components/NavButton'
 import { Chat } from '../components/Chat'
@@ -7,6 +7,7 @@ import { Icon } from '../components/icons'
 import { GuestBadge } from '../components/ui'
 import { ApiError } from '../lib/api'
 import type { User } from '../lib/auth'
+import { useConfirm } from '../lib/confirm'
 import { useOpenDm, type Group as GroupData, type Role } from '../lib/conversations'
 import { useBlocks } from '../lib/friends'
 import {
@@ -22,6 +23,7 @@ import {
   useTransferGroup,
   type Member,
 } from '../lib/groups'
+import { useModals } from '../lib/modals'
 import { usePresence } from '../lib/presence'
 
 export function Group({ user }: { user: User }) {
@@ -31,6 +33,7 @@ export function Group({ user }: { user: User }) {
   // On a phone the member list covers the chat, so it starts closed there.
   const [showMembers, setShowMembers] = useState(() => matchMedia('(min-width: 768px)').matches)
   const [copied, setCopied] = useState(false)
+  const { openGroupSettings } = useModals()
 
   // Kicked, banned, left in another tab or the group was deleted.
   if (lost) return <Navigate to="/" replace />
@@ -65,14 +68,7 @@ export function Group({ user }: { user: User }) {
             active={showMembers}
             onClick={() => setShowMembers(!showMembers)}
           />
-          <Link
-            to={`/groups/${group.id}/settings`}
-            aria-label="Group settings"
-            title="Group settings"
-            className="rounded p-1.5 text-zinc-400 hover:text-zinc-200"
-          >
-            <Icon name="cog" />
-          </Link>
+          <HeaderButton label="Group settings" icon="cog" onClick={() => openGroupSettings(group.id)} />
         </div>
       </header>
 
@@ -103,14 +99,14 @@ export function Group({ user }: { user: User }) {
   )
 }
 
-function HeaderButton({ label, icon, active, onClick }: { label: string; icon: 'link' | 'users'; active?: boolean; onClick: () => void }) {
+function HeaderButton({ label, icon, active, onClick }: { label: string; icon: 'link' | 'users' | 'cog'; active?: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       aria-label={label}
       title={label}
       aria-pressed={active}
-      className={`rounded p-1.5 hover:text-zinc-200 ${active ? 'text-zinc-100' : 'text-zinc-400'}`}
+      className={`rounded p-1.5 transition hover:bg-hover/60 hover:text-zinc-200 ${active ? 'text-zinc-100' : 'text-zinc-400'}`}
     >
       <Icon name={icon} />
     </button>
@@ -176,6 +172,7 @@ function MemberActions({ me, group, member, onDone }: { me: User; group: GroupDa
   const kick = useKick(group.id)
   const ban = useBan(group.id)
   const transfer = useTransferGroup(group.id)
+  const confirm = useConfirm()
   const { user } = member
   const self = user.id === me.id
   const above = outranks(group.role, member.role)
@@ -203,24 +200,43 @@ function MemberActions({ me, group, member, onDone }: { me: User; group: GroupDa
           ))}
       {!self && group.role === 'owner' && (
         <MenuItem
-          onClick={() =>
-            confirm(`Hand ${group.name} over to ${user.display_name}? You will become an admin.`) &&
-            transfer.mutate(user.id, done)
+          onClick={async () =>
+            (await confirm({
+              title: 'Transfer ownership',
+              body: `Hand ${group.name} over to ${user.display_name}? You will become an admin, and only they can give it back.`,
+              action: 'Transfer ownership',
+              danger: true,
+            })) && transfer.mutate(user.id, done)
           }
         >
           Transfer ownership
         </MenuItem>
       )}
       {!self && above && RANK[group.role] >= RANK.mod && (
-        <MenuItem danger onClick={() => confirm(`Kick ${user.display_name} from ${group.name}?`) && kick.mutate(user.id, done)}>
+        <MenuItem
+          danger
+          onClick={async () =>
+            (await confirm({
+              title: `Kick ${user.display_name}`,
+              body: `They'll be removed from ${group.name}, but can rejoin with an invite.`,
+              action: 'Kick',
+              danger: true,
+            })) && kick.mutate(user.id, done)
+          }
+        >
           Kick {user.display_name}
         </MenuItem>
       )}
       {!self && above && RANK[group.role] >= RANK.admin && (
         <MenuItem
           danger
-          onClick={() =>
-            confirm(`Ban ${user.display_name}? They won't be able to rejoin until unbanned.`) && ban.mutate(user.id, done)
+          onClick={async () =>
+            (await confirm({
+              title: `Ban ${user.display_name}`,
+              body: `They'll be removed from ${group.name} and can't rejoin until unbanned.`,
+              action: 'Ban',
+              danger: true,
+            })) && ban.mutate(user.id, done)
           }
         >
           Ban {user.display_name}

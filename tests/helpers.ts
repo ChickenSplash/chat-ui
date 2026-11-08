@@ -19,8 +19,9 @@ export async function joinAsGuest(page: Page, name: string): Promise<string> {
   await page.getByRole('button', { name: 'Join' }).click()
   await expect(page.getByTestId('me')).toContainText(name)
 
-  await page.getByRole('link', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'User settings' }).click()
   const id = (await page.getByTestId('public-id').textContent())!.replace('#', '')
+  await page.getByRole('button', { name: 'Close' }).click()
   // On a phone the sidebar is hidden while a page shows.
   const nav = page.getByRole('button', { name: 'Open navigation' })
   if (await nav.isVisible()) await nav.click()
@@ -28,9 +29,16 @@ export async function joinAsGuest(page: Page, name: string): Promise<string> {
   return id
 }
 
+/** Accepts the confirmation modal on top (the app's own, not the browser's). */
+export async function confirmModal(page: Page) {
+  await page.getByRole('dialog').last().locator('button[type="submit"]').click()
+}
+
 export async function logOut(page: Page) {
-  page.once('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Log out' }).click()
+  // From the settings modal if it's open, otherwise the panel under the sidebar.
+  const settings = page.getByRole('dialog', { name: 'User settings' })
+  await ((await settings.isVisible()) ? settings : page).getByRole('button', { name: 'Log out' }).click()
+  await confirmModal(page)
   await expect(page.getByRole('tab', { name: 'Join as guest' })).toBeVisible()
 }
 

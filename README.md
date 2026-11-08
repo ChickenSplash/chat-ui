@@ -24,9 +24,15 @@ Everything is same-origin: nginx (or the Vite dev server) forwards
 - **Friends** (`/`): All, Pending, Blocked, Add Friend by ID
 - **DM** (`/dm/:id`): messages show grey until HMS saves them, red with Retry / Discard on failure
 - **Group** (`/groups/:id`): chat plus a member list; click a member for role, kick and ban options
-- **Group settings** (`/groups/:id/settings`): details, invite link, bans, leave, delete
-- **Create or join** (`/groups/new`), **Explore** (`/groups/explore`), **Invite** (`/invite/:code`)
-- **Settings** (`/settings`): display name, password, live connection ping
+- **Explore** (`/groups/explore`), **Invite** (`/invite/:code`)
+- **Modals** (`src/components/Modal.tsx`, no URL of their own, opened through `src/lib/modals.ts`):
+  - **User settings** (cog by your name): Profile (display name, password) and Developer (live
+    connection ping), plus Log out
+  - **Group settings** (group name or cog): Overview, Invites, Bans, Leave, Delete
+  - **Create or join a group** (the + on the rail)
+  - **Confirmations:** `useConfirm()` (`src/lib/confirm.ts`) instead of the browser's
+    `confirm()`/`prompt()`; shift-click Delete on a message skips it. Tests accept one with
+    `confirmModal()` from `tests/helpers.ts`.
 - **Everywhere:** status dots, a status menu on your avatar, typing indicators and a red "New"
   line at the first unread message
 - **Messages:** edit your own text (inline, Enter saves, Esc cancels, Up in an empty composer

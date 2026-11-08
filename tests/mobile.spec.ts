@@ -47,10 +47,10 @@ test('on a phone, groups open from the rail and the member list slides over the 
   const name = `Phone ${Math.random().toString(36).slice(2, 8)}`
 
   await openNavigation(alice.page)
-  await alice.page.getByRole('link', { name: 'Create or join a group' }).tap()
-  await expect(navigation(alice.page)).toBeHidden()
+  await alice.page.getByRole('button', { name: 'Create or join a group' }).tap()
   await alice.page.getByLabel('Group name').fill(name)
   await alice.page.getByRole('button', { name: 'Create group' }).tap()
+  await expect(navigation(alice.page)).toBeHidden()
   await expect(alice.page.getByRole('heading', { name: `Welcome to ${name}` })).toBeVisible()
 
   // Starts closed on a phone, opens over the chat and closes from the backdrop.

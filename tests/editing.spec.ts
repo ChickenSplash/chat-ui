@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
-import { befriend, twoGuests, unique } from './helpers'
+import { befriend, confirmModal, twoGuests, unique } from './helpers'
 
 const message = (page: Page, body: string) => page.getByTestId('message').filter({ has: page.locator('p').filter({ hasText: body }) })
 
@@ -93,8 +93,8 @@ test('replies quote and jump to originals, then reflect edits and deletion live 
   await bob.page.reload()
   await expect(message(bob.page, 'A reply to you').getByTestId('reply-preview')).toHaveText('Alice: Updated original')
 
-  alice.page.once('dialog', (dialog) => dialog.accept())
   await action(message(alice.page, 'Updated original'), 'Delete message')
+  await confirmModal(alice.page)
   await expect(quote).toHaveText('Original message deleted')
   await expect(message(bob.page, 'A reply to you').getByTestId('reply-preview')).toBeDisabled()
   await bob.page.reload()
@@ -121,13 +121,14 @@ test('a failed reply retains its target when retried', async ({ browser }) => {
 test('groups support edits and replies, without exposing blocked authors through quotes', async ({ browser }) => {
   const [alice, bob] = await twoGuests(browser)
   const name = `Replies ${unique()}`
-  await alice.page.getByRole('link', { name: 'Create or join a group' }).click()
+  await alice.page.getByRole('button', { name: 'Create or join a group' }).click()
   await alice.page.getByLabel('Group name').fill(name)
   await alice.page.getByRole('button', { name: 'Create group' }).click()
   await expect(alice.page.getByRole('heading', { name: `Welcome to ${name}` })).toBeVisible()
-  await alice.page.getByRole('link', { name: 'Group settings' }).click()
+  await alice.page.getByRole('button', { name: 'Group settings' }).click()
+  await alice.page.getByRole('button', { name: 'Invites' }).click()
   const invite = new URL((await alice.page.getByTestId('invite-link').textContent())!).pathname
-  await alice.page.getByRole('link', { name: 'Back to the chat' }).click()
+  await alice.page.getByRole('button', { name: 'Close' }).click()
   await bob.page.goto(invite)
   await bob.page.getByRole('button', { name: `Join ${name}` }).click()
   await expect(bob.page.getByLabel(`Message ${name}`)).toBeVisible()

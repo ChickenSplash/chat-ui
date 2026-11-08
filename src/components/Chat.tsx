@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { User } from '../lib/auth'
+import { useConfirm } from '../lib/confirm'
 import {
   discardPending,
   markRead,
@@ -435,7 +436,32 @@ function SavedRow({
   highlighted: boolean
 }) {
   const remove = useDeleteMessage(conversationId)
+  const confirm = useConfirm()
   const [revealed, setRevealed] = useState(false)
+
+  // Shift-click skips the question, as in Discord.
+  const deleteMessage = async (skip: boolean) => {
+    const ok =
+      skip ||
+      (await confirm({
+        title: 'Delete message',
+        body: (
+          <>
+            <span className="mb-3 block">Are you sure you want to delete this message?</span>
+            <span className="block max-h-40 overflow-hidden rounded-md bg-side px-3 py-2 text-zinc-200 shadow ring-1 ring-black/20">
+              <span className="block font-medium text-white">{nameOf(row.author)}</span>
+              <span className="line-clamp-4 break-words whitespace-pre-wrap">{row.message.body}</span>
+            </span>
+            <span className="mt-3 block text-xs">
+              Tip: hold <kbd className="font-semibold text-zinc-300">Shift</kbd> when you click delete to skip this.
+            </span>
+          </>
+        ),
+        action: 'Delete',
+        danger: true,
+      }))
+    if (ok) remove.mutate(row.message.id)
+  }
 
   if (hidden && !revealed) {
     return (
@@ -468,7 +494,7 @@ function SavedRow({
             <button
               aria-label="Delete message"
               title="Delete message"
-              onClick={() => confirm('Delete this message?') && remove.mutate(row.message.id)}
+              onClick={(event) => deleteMessage(event.shiftKey)}
               className="p-1.5 text-zinc-400 hover:text-red-400"
             >
               <Icon name="trash" className="size-4" />

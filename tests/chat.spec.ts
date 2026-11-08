@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { befriend, twoGuests } from './helpers'
+import { befriend, confirmModal, twoGuests } from './helpers'
 
 test('two people become friends and chat live', async ({ browser }) => {
   const [alice, bob] = await twoGuests(browser)
@@ -27,8 +27,8 @@ test('two people become friends and chat live', async ({ browser }) => {
   // Deleting a message removes it on both sides.
   const mine = alice.page.getByTestId('message').filter({ hasText: 'Hello Bob!' })
   await mine.hover()
-  alice.page.once('dialog', (dialog) => dialog.accept())
   await mine.getByRole('button', { name: 'Delete message' }).click()
+  await confirmModal(alice.page)
   await expect(bob.page.getByText('Hello Bob!')).toHaveCount(0)
 })
 
@@ -72,8 +72,8 @@ test('blocking stops messages both ways without telling the blocked person why',
   await expect(bob.page.getByRole('list', { name: 'Direct messages' })).toContainText('Alice')
 
   await bob.page.getByRole('tab', { name: 'All' }).click()
-  bob.page.once('dialog', (dialog) => dialog.accept())
   await bob.page.getByRole('button', { name: 'Block Alice' }).click()
+  await confirmModal(bob.page)
   await bob.page.getByRole('tab', { name: 'Blocked' }).click()
   await expect(bob.page.getByRole('button', { name: 'Unblock Alice' })).toBeVisible()
 

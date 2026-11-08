@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
-import { joinAsGuest, ownIp, unique } from './helpers'
+import { confirmModal, joinAsGuest, ownIp, unique } from './helpers'
 
 type Person = { page: Page; id: string; name: string }
 
@@ -16,7 +16,7 @@ async function people(browser: Browser, ...names: string[]): Promise<Person[]> {
 }
 
 async function createGroup(page: Page, name: string, visibility: 'Public' | 'Private') {
-  await page.getByRole('link', { name: 'Create or join a group' }).click()
+  await page.getByRole('button', { name: 'Create or join a group' }).click()
   await page.getByLabel('Group name').fill(name)
   await page.getByRole('radio', { name: new RegExp(`^${visibility}`) }).check()
   await page.getByRole('button', { name: 'Create group' }).click()
@@ -34,14 +34,15 @@ const members = (page: Page) => page.getByRole('complementary', { name: 'Members
 
 async function memberAction(page: Page, member: string, action: string, { confirm = true } = {}) {
   await members(page).getByRole('button', { name: new RegExp(`^${member}\\b`) }).click()
-  if (confirm) page.once('dialog', (dialog) => dialog.accept())
   await members(page).getByRole('button', { name: action }).click()
+  if (confirm) await confirmModal(page)
 }
 
 async function inviteLink(page: Page) {
-  await page.getByRole('link', { name: 'Group settings' }).click()
+  await page.getByRole('button', { name: 'Group settings' }).click()
+  await page.getByRole('button', { name: 'Invites' }).click()
   const link = (await page.getByTestId('invite-link').textContent())!
-  await page.getByRole('link', { name: 'Back to the chat' }).click()
+  await page.getByRole('button', { name: 'Close' }).click()
   return new URL(link).pathname
 }
 
@@ -109,8 +110,8 @@ test('roles, kicking and banning follow rank', async ({ browser }) => {
   await say(carol.page, name, 'spam spam spam')
   const spam = bob.page.getByTestId('message').filter({ hasText: 'spam spam spam' })
   await spam.hover()
-  bob.page.once('dialog', (dialog) => dialog.accept())
   await spam.getByRole('button', { name: 'Delete message' }).click()
+  await confirmModal(bob.page)
   await expect(carol.page.getByText('spam spam spam')).toHaveCount(0)
 
   await members(bob.page).getByRole('button', { name: /^Alice\b/ }).click()
@@ -133,7 +134,8 @@ test('roles, kicking and banning follow rank', async ({ browser }) => {
   await carol.page.getByRole('button', { name: `Join ${name}` }).click()
   await expect(carol.page.getByText('You are banned from this group.')).toBeVisible()
 
-  await alice.page.getByRole('link', { name: 'Group settings' }).click()
+  await alice.page.getByRole('button', { name: 'Group settings' }).click()
+  await alice.page.getByRole('button', { name: 'Bans' }).click()
   await alice.page.getByRole('button', { name: 'Unban Carol' }).click()
   await carol.page.getByRole('button', { name: `Join ${name}` }).click()
   await expect(carol.page.getByRole('heading', { name: `Welcome to ${name}` })).toBeVisible()
@@ -149,14 +151,14 @@ test('when the owner leaves, the highest ranked member takes over', async ({ bro
   await bob.page.getByRole('button', { name: `Join ${name}` }).click()
   await expect(members(alice.page)).toContainText('Bob')
 
-  await alice.page.getByRole('link', { name: 'Group settings' }).click()
-  alice.page.once('dialog', (dialog) => dialog.accept())
+  await alice.page.getByRole('button', { name: 'Group settings' }).click()
   await alice.page.getByRole('button', { name: 'Leave group' }).click()
+  await confirmModal(alice.page)
   await expect(alice.page.getByRole('list', { name: 'Groups' }).getByRole('link', { name })).toHaveCount(0)
 
   await expect(bob.page.getByTestId('system-message').last()).toContainText('Bob is now the owner.')
   await expect(members(bob.page).getByRole('heading', { name: 'Owner · 1' })).toBeVisible()
-  await bob.page.getByRole('link', { name: 'Group settings' }).click()
+  await bob.page.getByRole('button', { name: 'Group settings' }).click()
   await expect(bob.page.getByRole('button', { name: 'Delete group' })).toBeVisible()
 })
 

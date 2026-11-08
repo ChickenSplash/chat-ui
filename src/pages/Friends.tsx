@@ -6,6 +6,7 @@ import { Icon, type IconName } from '../components/icons'
 import { Badge } from '../components/Layout'
 import { GuestBadge } from '../components/ui'
 import { ApiError } from '../lib/api'
+import { useConfirm } from '../lib/confirm'
 import { useOpenDm } from '../lib/conversations'
 import {
   useAcceptFriend,
@@ -81,6 +82,7 @@ function FriendList() {
   const block = useBlock()
   const openDm = useOpenDm()
   const navigate = useNavigate()
+  const confirm = useConfirm()
   const list = friends.data?.filter((f) => f.status === 'friend') ?? []
 
   const message = (user: PublicUser) =>
@@ -95,13 +97,27 @@ function FriendList() {
             icon="userMinus"
             label={`Remove ${user.display_name}`}
             danger
-            onClick={() => confirm(`Remove ${user.display_name} from your friends?`) && remove.mutate(user.id)}
+            onClick={async () =>
+              (await confirm({
+                title: `Remove ${user.display_name}`,
+                body: `Remove ${user.display_name} from your friends? You can still message each other.`,
+                action: 'Remove friend',
+                danger: true,
+              })) && remove.mutate(user.id)
+            }
           />
           <Action
             icon="block"
             label={`Block ${user.display_name}`}
             danger
-            onClick={() => confirm(`Block ${user.display_name}? They won't be able to message you.`) && block.mutate(user.id)}
+            onClick={async () =>
+              (await confirm({
+                title: `Block ${user.display_name}`,
+                body: "They won't be able to message you, and their group messages are hidden from you.",
+                action: 'Block',
+                danger: true,
+              })) && block.mutate(user.id)
+            }
           />
         </Row>
       ))}

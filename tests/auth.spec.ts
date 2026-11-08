@@ -12,13 +12,15 @@ test('a guest joins, pings over the WebSocket, renames and leaves', async ({ pag
   await expect(page.getByTestId('me')).toContainText('Smoke Guest')
   await expect(page.getByRole('heading', { name: 'Friends', exact: true })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'User settings' }).click()
   await expect(page.getByTestId('public-id')).toHaveText(/^#[a-z2-9]{8}$/)
-  await expect(page.getByTestId('connection-state')).toHaveText('connected')
 
+  await page.getByRole('button', { name: 'Developer' }).click()
+  await expect(page.getByTestId('connection-state')).toHaveText('connected')
   await page.getByRole('button', { name: 'Ping' }).click()
   await expect(page.getByTestId('ping-result')).toHaveText(/Pong in \d+ ms/)
 
+  await page.getByRole('button', { name: 'Profile' }).click()
   await page.getByLabel('Display name').fill('Renamed Guest')
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByText('Saved')).toBeVisible()
@@ -57,7 +59,7 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
   await page.getByRole('button', { name: 'Log in' }).click()
   await expect(page.getByTestId('me')).toHaveText('E2E User')
 
-  await page.getByRole('link', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'User settings' }).click()
   await expect(page.getByText(email)).toBeVisible()
 
   await page.getByLabel('Current password').fill('a-long-password')
@@ -71,7 +73,6 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill('another-long-password')
   await page.getByRole('button', { name: 'Log in' }).click()
-  // Signing back in keeps the page you were on (settings).
   await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible()
 })
 

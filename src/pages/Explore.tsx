@@ -2,6 +2,7 @@ import { useDeferredValue, useState } from 'react'
 import { GroupPreview } from '../components/GroupPreview'
 import { Icon } from '../components/icons'
 import { useBrowseGroups, useJoinGroup } from '../lib/groups'
+import { useModals } from '../lib/modals'
 import { NavButton } from '../components/NavButton'
 
 /** Public groups, biggest first. */
@@ -9,6 +10,7 @@ export function Explore() {
   const [search, setSearch] = useState('')
   const groups = useBrowseGroups(useDeferredValue(search.trim()))
   const join = useJoinGroup()
+  const { openNewGroup } = useModals()
 
   return (
     <>
@@ -29,7 +31,16 @@ export function Explore() {
           />
           {groups.data?.length === 0 && (
             <p className="py-8 text-center text-zinc-500">
-              {search.trim() ? 'No public groups match that name.' : 'No public groups yet. Why not start one?'}
+              {search.trim() ? (
+                'No public groups match that name.'
+              ) : (
+                <>
+                  No public groups yet.{' '}
+                  <button onClick={openNewGroup} className="font-medium text-sky-400 hover:underline">
+                    Why not start one?
+                  </button>
+                </>
+              )}
             </p>
           )}
           {groups.data?.map((group) => (

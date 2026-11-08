@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, ensureCsrfCookie } from './api'
+import { useConfirm } from './confirm'
 import type { Preference } from './presence'
 
 export type User = {
@@ -63,6 +64,28 @@ export function useLogout() {
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== ME[0] })
     },
   })
+}
+
+/** Log out after asking first; a guest is warned their account goes with it. */
+export function useSignOut(user: User) {
+  const logout = useLogout()
+  const confirm = useConfirm()
+
+  const signOut = async () => {
+    const ok = await confirm(
+      user.is_guest
+        ? {
+            title: 'Log out and delete this guest account?',
+            body: "Guest accounts are deleted when they log out, and can't be recovered.",
+            action: 'Log out',
+            danger: true,
+          }
+        : { title: 'Log out', body: 'Are you sure you want to log out?', action: 'Log out', danger: true },
+    )
+    if (ok) logout.mutate()
+  }
+
+  return { signOut, pending: logout.isPending }
 }
 
 export function useUpdateProfile() {
