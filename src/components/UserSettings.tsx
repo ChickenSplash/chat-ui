@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { TERMS_URL } from '../lib/accounts'
 import { api, ApiError } from '../lib/api'
 import { useChangePassword, useSignOut, useUpdateProfile, type User } from '../lib/auth'
 import { useRealtime, type ConnectionState } from '../lib/realtime-context'
@@ -26,9 +26,9 @@ export function UserSettings({ user, onClose }: { user: User; onClose: () => voi
       onSelect={setSection}
       actions={[{ label: 'Log out', icon: 'logout', danger: true, onClick: signOut }]}
       footer={
-        <Link to="/terms" className="hover:text-zinc-300 hover:underline">
+        <a href={TERMS_URL} target="_blank" rel="noopener" className="hover:text-zinc-300 hover:underline">
           Terms and privacy
-        </Link>
+        </a>
       }
       onClose={onClose}
     >

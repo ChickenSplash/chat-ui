@@ -11,9 +11,25 @@ export async function ownIp(context: BrowserContext) {
 
 export const unique = () => Math.random().toString(36).slice(2, 10)
 
+/**
+ * Opens the app signed out, which sends you to the shared sign-in site (HMS, on :8091 in the
+ * dev stack), and picks a tab there.
+ */
+export async function openSignIn(page: Page, tab: 'Log in' | 'Register' | 'Join as guest', path = '/') {
+  await page.goto(path)
+  await expect(page.getByRole('heading', { name: 'Homelab accounts' })).toBeVisible()
+  await page.getByRole('navigation', { name: 'Sign in' }).getByRole('link', { name: tab }).click()
+}
+
+/** Back on the sign-in site, signed out. */
+export async function expectSignedOut(page: Page) {
+  await expect(page.getByRole('heading', { name: 'Homelab accounts' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Log in' })).toHaveAttribute('aria-current', 'page')
+}
+
 /** Joins as a guest and returns their public ID. */
 export async function joinAsGuest(page: Page, name: string): Promise<string> {
-  await page.goto('/')
+  await openSignIn(page, 'Join as guest')
   await page.getByLabel('Display name').fill(name)
   await page.getByRole('checkbox', { name: /agree to the terms/ }).check()
   await page.getByRole('button', { name: 'Join' }).click()
@@ -39,7 +55,7 @@ export async function logOut(page: Page) {
   const settings = page.getByRole('dialog', { name: 'User settings' })
   await ((await settings.isVisible()) ? settings : page).getByRole('button', { name: 'Log out' }).click()
   await confirmModal(page)
-  await expect(page.getByRole('tab', { name: 'Join as guest' })).toBeVisible()
+  await expectSignedOut(page)
 }
 
 /** Two people, each in their own browser context (separate cookies, separate WebSocket). */

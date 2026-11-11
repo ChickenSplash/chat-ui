@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
-import { logOut, ownIp, unique } from './helpers'
+import { expectSignedOut, logOut, openSignIn, ownIp, unique } from './helpers'
 
 test.beforeEach(({ context }) => ownIp(context))
 
 test('a guest joins, pings over the WebSocket, renames and leaves', async ({ page }) => {
-  await page.goto('/')
+  await openSignIn(page, 'Join as guest')
   await page.getByLabel('Display name').fill('Smoke Guest')
   await page.getByRole('checkbox', { name: /agree to the terms/ }).check()
   await page.getByRole('button', { name: 'Join' }).click()
@@ -32,13 +32,16 @@ test('a guest joins, pings over the WebSocket, renames and leaves', async ({ pag
   await expect(page.getByTestId('me')).toContainText('Renamed Guest')
 
   await logOut(page)
+
+  // The guest is gone, so the app sends you straight back to sign in.
+  await page.goto('/')
+  await expectSignedOut(page)
 })
 
 test('someone registers, logs out and logs back in', async ({ page }) => {
   const email = `e2e-${unique()}@example.com`
 
-  await page.goto('/')
-  await page.getByRole('tab', { name: 'Register' }).click()
+  await openSignIn(page, 'Register')
   await page.getByLabel('Display name').fill('E2E User')
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password', { exact: true }).fill('a-long-password')
@@ -49,11 +52,11 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
 
   await logOut(page)
 
-  await page.getByRole('tab', { name: 'Log in' }).click()
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill('wrong-password')
   await page.getByRole('button', { name: 'Log in' }).click()
   await expect(page.getByText('These credentials do not match our records.')).toBeVisible()
+  await expect(page.getByLabel('Email')).toHaveValue(email)
 
   await page.getByLabel('Password').fill('a-long-password')
   await page.getByRole('button', { name: 'Log in' }).click()
@@ -69,15 +72,34 @@ test('someone registers, logs out and logs back in', async ({ page }) => {
   await expect(page.getByText('Password changed')).toBeVisible()
 
   await logOut(page)
-  await page.getByRole('tab', { name: 'Log in' }).click()
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill('another-long-password')
   await page.getByRole('button', { name: 'Log in' }).click()
   await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible()
 })
 
+test('signing in returns you to the page you asked for', async ({ page }) => {
+  await openSignIn(page, 'Join as guest', '/groups/explore')
+  await page.getByLabel('Display name').fill('Returning Guest')
+  await page.getByRole('checkbox', { name: /agree to the terms/ }).check()
+  await page.getByRole('button', { name: 'Join' }).click()
+
+  await expect(page).toHaveURL(/\/groups\/explore$/)
+  await expect(page.getByTestId('me')).toContainText('Returning Guest')
+
+  // Signed in, the sign-in site goes straight on to the launcher.
+  const app = new URL(page.url())
+  await page.goto(`${process.env.ACCOUNTS_URL ?? 'http://localhost:8091'}/login`)
+  await expect(page.getByRole('heading', { name: 'Hi, Returning Guest' })).toBeVisible()
+  await page.getByRole('link', { name: /^Chat/ }).click()
+  await expect(page).toHaveURL(new RegExp(`^${app.origin}`))
+  await expect(page.getByTestId('me')).toContainText('Returning Guest')
+
+  await logOut(page)
+})
+
 test('a blank-looking name is refused under the field', async ({ page }) => {
-  await page.goto('/')
+  await openSignIn(page, 'Join as guest')
   await page.getByLabel('Display name').fill('   ')
   await page.getByRole('checkbox', { name: /agree to the terms/ }).check()
   await page.getByRole('button', { name: 'Join' }).click()
@@ -85,11 +107,10 @@ test('a blank-looking name is refused under the field', async ({ page }) => {
 })
 
 test('joining needs the terms agreed, and the terms open without signing in', async ({ page }) => {
-  await page.goto('/')
+  await openSignIn(page, 'Join as guest')
   await page.getByLabel('Display name').fill('Hasty Guest')
   await page.getByRole('button', { name: 'Join' }).click()
-  await expect(page.getByRole('tab', { name: 'Join as guest' })).toBeVisible()
-  await expect(page.getByTestId('me')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Join as guest' })).toHaveAttribute('aria-current', 'page')
 
   const [terms] = await Promise.all([
     page.waitForEvent('popup'),

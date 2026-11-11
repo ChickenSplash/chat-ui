@@ -1,0 +1,86 @@
+# A local copy of HMS and chat-ui for development and the Playwright tests: the app on
+# http://localhost:8090, its sign-in site (HMS) on http://localhost:8091. Cookies ignore the
+# port, so the two share the session. Expects the HMS repo next to this one. Plain HTTP, so
+# cookies aren't Secure (WebKit drops Secure ones on http://localhost).
+#
+#   docker compose -f dev/docker-compose.yml up -d --build
+name: chat-dev
+
+x-hms: &hms
+  image: hms:chat-dev
+  environment: &env
+    APP_NAME: HMS
+    APP_ENV: local
+    APP_DEBUG: 'true'
+    # Local only. Shared, so the API, Reverb and the queue worker agree.
+    APP_KEY: 'base64:Av8t9RKyo7wCnD/RqJ1B9cCFT6+n+WJccgsNVhN8qwg='
+    DB_CONNECTION: sqlite
+    DB_DATABASE: /app/data/database.sqlite
+    SESSION_DRIVER: database
+    SESSION_LIFETIME: 43200
+    SESSION_SECURE_COOKIE: 'false'
+    CACHE_STORE: database
+    QUEUE_CONNECTION: database
+    SANCTUM_STATEFUL_DOMAINS: localhost:8090
+    ACCOUNTS_URL: http://localhost:8091
+    CHAT_URL: http://localhost:8090
+    MUSIC_URL: ''
+    BROADCAST_CONNECTION: reverb
+    REVERB_APP_ID: hms
+    REVERB_APP_KEY: chat-dev-key
+    REVERB_APP_SECRET: chat-dev-secret
+    REVERB_HOST: hms-reverb
+    REVERB_PORT: 8080
+    REVERB_SCHEME: http
+    # Reverb matches the origin's host without its port.
+    REVERB_ALLOWED_ORIGINS: localhost
+    REVERB_APP_PING_INTERVAL: 20
+    LOG_CHANNEL: stderr
+  volumes:
+    - database:/app/data
+
+services:
+  hms:
+    <<: *hms
+    build: ../../homelab-management-system
+    environment:
+      <<: *env
+      RUN_MIGRATIONS: 'true'
+    ports:
+      - '127.0.0.1:8091:3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', '-o', '/dev/null', 'http://127.0.0.1:3000/up']
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+
+  hms-reverb:
+    <<: *hms
+    command: ['php', 'artisan', 'reverb:start', '--host=0.0.0.0', '--port=8080']
+    healthcheck:
+      disable: true
+    depends_on:
+      hms:
+        condition: service_healthy
+
+  hms-queue:
+    <<: *hms
+    command: ['php', 'artisan', 'queue:work', '--sleep=1', '--tries=3']
+    healthcheck:
+      disable: true
+    depends_on:
+      hms:
+        condition: service_healthy
+
+  chat-ui:
+    build:
+      context: ..
+      args:
+        VITE_ACCOUNTS_URL: http://localhost:8091
+    image: chat-ui:dev
+    ports:
+      - '127.0.0.1:8090:80'
+    depends_on: [hms, hms-reverb]
+
+volumes:
+  database:

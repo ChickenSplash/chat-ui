@@ -5,6 +5,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY . .
+# The shared sign-in site signed-out visitors are sent to (HMS).
+ARG VITE_ACCOUNTS_URL=https://chickensplash.dpdns.org
 RUN npm run build
 
 FROM nginx:alpine

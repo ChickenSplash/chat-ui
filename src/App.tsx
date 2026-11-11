@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 import { Layout } from './components/Layout'
 import { ErrorNote } from './components/ui'
+import { goToSignIn, TERMS_URL } from './lib/accounts'
 import { useMe } from './lib/auth'
 import { RealtimeProvider } from './lib/realtime'
 import { DirectMessage } from './pages/DirectMessage'
@@ -8,13 +10,11 @@ import { Explore } from './pages/Explore'
 import { Friends } from './pages/Friends'
 import { Group } from './pages/Group'
 import { Invite } from './pages/Invite'
-import { Terms } from './pages/Terms'
-import { Welcome } from './pages/Welcome'
 
 export default function App() {
   return (
     <Routes>
-      <Route path="terms" element={<Terms />} />
+      <Route path="terms" element={<Away to={TERMS_URL} />} />
       <Route path="*" element={<Main />} />
     </Routes>
   )
@@ -35,7 +35,7 @@ function Main() {
 
   const user = me.data
 
-  if (!user) return <Welcome />
+  if (!user) return <SignIn />
 
   return (
     <RealtimeProvider user={user}>
@@ -51,4 +51,16 @@ function Main() {
       </Routes>
     </RealtimeProvider>
   )
+}
+
+/** Signed out: off to the shared sign-in site, which sends you back to this same page. */
+function SignIn() {
+  useEffect(() => goToSignIn(), [])
+  return null
+}
+
+/** The terms live on the sign-in site now; old links still land there. */
+function Away({ to }: { to: string }) {
+  useEffect(() => window.location.replace(to), [to])
+  return null
 }

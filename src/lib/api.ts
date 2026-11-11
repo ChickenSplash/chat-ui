@@ -1,6 +1,8 @@
 // Thin fetch wrapper for HMS. Everything is same-origin (nginx or the Vite proxy forward
 // /api and /sanctum), so the session cookie rides along without any CORS setup.
 
+import { goToSignIn } from './accounts'
+
 export class ApiError extends Error {
   status: number
   errors: Record<string, string[]>
@@ -42,6 +44,9 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
     credentials: 'same-origin',
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+
+  // The shared session ended (logged out in another app, or expired): off to sign in again.
+  if (response.status === 401) goToSignIn()
 
   if (response.status === 204) return undefined as T
 
